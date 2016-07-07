@@ -582,6 +582,8 @@ VAStatus rockchip_SetImagePalette(
     return VA_STATUS_SUCCESS;
 }
 
+#define SQUARE_SIZE 5
+#define MIN(X,Y) ((X) < (Y) ? (X) : (Y))
 static VAStatus
 get_image_i420(struct object_image *obj_image, uint8_t *image_data,
                struct object_surface *obj_surface,
@@ -594,6 +596,7 @@ get_image_i420(struct object_image *obj_image, uint8_t *image_data,
 	const int U = 2;
 	int x, y;
 	double rx, ry;
+	static int t = 0;
 
 	VAStatus va_status = VA_STATUS_SUCCESS;
 
@@ -602,9 +605,21 @@ get_image_i420(struct object_image *obj_image, uint8_t *image_data,
 	dst[U] = image_data + obj_image->image.offsets[U];
 	dst[V] = image_data + obj_image->image.offsets[V];
 
-	memset(dst[Y], 255, rect->width * rect->height);
+	memset(dst[Y], 0, rect->width * rect->height);
 	memset(dst[U], 128, (rect->width / 2) * (rect->height / 2));
 	memset(dst[V], 128, (rect->width / 2) * (rect->height / 2));
+
+	rx = cos(7 * t / 3.14 / 25 * 100 / rect->width);
+	ry = sin(6 * t / 3.14 / 25 * 100 / rect->width);
+
+	x = (rx + 1) / 2 * (rect->width - 2 * SQUARE_SIZE) + SQUARE_SIZE;
+	y = (ry + 1) / 2 * (rect->height - 2 * SQUARE_SIZE) + SQUARE_SIZE;
+
+	for(int i = MIN(SQUARE_SIZE, rect->width) - 1; i >= 0; i--)
+		for(int j = MIN(SQUARE_SIZE, rect->height) - 1; j >= 0; --j)
+			dst[Y][x + i + (y + j) * rect->width] = 255;
+
+	t++;
 
 	return va_status;
 }
@@ -1331,7 +1346,6 @@ VAStatus VA_DRIVER_INIT_FUNC(  VADriverContextP ctx )
     vtable->vaTerminate = rockchip_Terminate;
     vtable->vaQueryConfigEntrypoints = rockchip_QueryConfigEntrypoints;
     vtable->vaQueryConfigProfiles = rockchip_QueryConfigProfiles;
-    vtable->vaQueryConfigEntrypoints = rockchip_QueryConfigEntrypoints;
     vtable->vaQueryConfigAttributes = rockchip_QueryConfigAttributes;
     vtable->vaCreateConfig = rockchip_CreateConfig;
     vtable->vaDestroyConfig = rockchip_DestroyConfig;
