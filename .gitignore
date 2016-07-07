@@ -64,3 +64,4 @@ stamp-h1
 CMakeFiles
 CMakeCache.txt
 *\.so
+cmake_install.cmake
