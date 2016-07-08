@@ -17,7 +17,6 @@ autom4te.cache
 compile
 config.guess
 config.h
-config.h.in
 config.log
 config.status
 config.sub
@@ -65,3 +64,4 @@ CMakeFiles
 CMakeCache.txt
 *\.so
 cmake_install.cmake
+install_manifest.txt
