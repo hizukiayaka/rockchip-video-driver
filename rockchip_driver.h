@@ -22,8 +22,8 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _ROCKCHIP_DRV_VIDEO_H_
-#define _ROCKCHIP_DRV_VIDEO_H_
+#ifndef _ROCKCHIP_DRIVER_H_
+#define _ROCKCHIP_DRIVER_H_
 
 #include <va/va.h>
 #include "object_heap.h"
@@ -35,6 +35,27 @@
 #define ROCKCHIP_MAX_SUBPIC_FORMATS		4
 #define ROCKCHIP_MAX_DISPLAY_ATTRIBUTES		4
 #define ROCKCHIP_STR_VENDOR			"Rockchip Driver 1.0"
+
+#define INIT_DRIVER_DATA	struct rockchip_driver_data * const driver_data = \
+					(struct rockchip_driver_data *) ctx->pDriverData;
+
+#define CONFIG(id)  ((object_config_p) object_heap_lookup( &driver_data->config_heap, id ))
+#define CONTEXT(id) ((object_context_p) object_heap_lookup( &driver_data->context_heap, id ))
+#define SURFACE(id) ((object_surface_p) object_heap_lookup( &driver_data->surface_heap, id ))
+#define BUFFER(id)  ((object_buffer_p) object_heap_lookup( &driver_data->buffer_heap, id ))
+#define IMAGE(id)   ((object_image_p) object_heap_lookup( &driver_data->image_heap, id))
+
+#define CONFIG_ID_OFFSET		0x01000000
+#define CONTEXT_ID_OFFSET		0x02000000
+#define SURFACE_ID_OFFSET		0x04000000
+#define BUFFER_ID_OFFSET		0x08000000
+#define IMAGE_ID_OFFSET			0x10000000
+
+#define NEW_CONFIG_ID() object_heap_allocate(&driver_data->config_heap);
+#define NEW_CONTEXT_ID() object_heap_allocate(&driver_data->context_heap);
+#define NEW_SURFACE_ID() object_heap_allocate(&driver_data->surface_heap);
+#define NEW_BUFFER_ID() object_heap_allocate(&driver_data->buffer_heap);
+#define NEW_IMAGE_ID() object_heap_allocate(&driver_data->image_heap);
 
 struct rockchip_driver_data {
     struct object_heap	config_heap;

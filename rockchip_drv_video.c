@@ -25,31 +25,13 @@
 #include "config.h"
 #include <va/va_backend.h>
 
-#include "rockchip_drv_video.h"
+#include "rockchip_driver.h"
 
-#include "assert.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
-
-#define ASSERT	assert
-
-#define INIT_DRIVER_DATA	struct rockchip_driver_data * const driver_data = (struct rockchip_driver_data *) ctx->pDriverData;
-
-#define CONFIG(id)  ((object_config_p) object_heap_lookup( &driver_data->config_heap, id ))
-#define CONTEXT(id) ((object_context_p) object_heap_lookup( &driver_data->context_heap, id ))
-#define SURFACE(id) ((object_surface_p) object_heap_lookup( &driver_data->surface_heap, id ))
-#define BUFFER(id)  ((object_buffer_p) object_heap_lookup( &driver_data->buffer_heap, id ))
-#define IMAGE(id)   ((object_image_p) object_heap_lookup( &driver_data->image_heap, id))
-
-#define CONFIG_ID_OFFSET		0x01000000
-#define CONTEXT_ID_OFFSET		0x02000000
-#define SURFACE_ID_OFFSET		0x04000000
-#define BUFFER_ID_OFFSET		0x08000000
-#define IMAGE_ID_OFFSET			0x10000000
-
-#define NEW_IMAGE_ID() object_heap_allocate(&driver_data->image_heap);
+#include <assert.h>
 
 enum {
     ROCKCHIP_SURFACETYPE_YUV,
