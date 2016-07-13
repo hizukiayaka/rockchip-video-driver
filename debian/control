@@ -1,0 +1,17 @@
+Source: libva-rockchip
+Section: libs
+Priority: optional
+Maintainer: Randy Li <randy.li@rock-chips.com>
+Build-Depends: debhelper (>= 9), cmake, libva-dev
+Standards-Version: 3.9.5
+Homepage: http://www.rock-chips.com
+Vcs-Git: git://git@github.com:hizukiayaka/rockchip-video-driver.git
+#Vcs-Browser: http://anonscm.debian.org/?p=collab-maint/libva-rockchip.git;a=summary
+
+Package: libva-rockchip1
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libva1
+Multi-Arch: same
+Description: The VA-API library for the Rock-Chips RK3288.
+  .
+  This package installs shared library files.
