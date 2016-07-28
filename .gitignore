@@ -7,6 +7,7 @@
 *.loT
 *.bin
 *.pc
+*.log
 .deps
 .libs
 Makefile
@@ -21,6 +22,9 @@ config.log
 config.status
 config.sub
 configure
+debian/files
+debian/*.substvars
+debian/libva-rockchip1/
 debian.upstream/changelog
 debian.upstream/control
 debian.upstream/libva-drm*.install
