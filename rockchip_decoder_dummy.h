@@ -26,6 +26,8 @@
 
 #ifndef _ROCKCHIP_DECODER_DUMMY_H_
 #define _ROCKCHIP_DECODER_DUMMY_H_
+#include "rockchip_driver.h"
+#include "rockchip_backend.h"
 
 struct rk_decoder_dummy_context {
 	struct hw_context base;

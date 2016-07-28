@@ -24,11 +24,46 @@
  *
  */
 
-#ifndef _ROCKCHIP_DEVICE_INFO_H_
-#define _ROCKCHIP_DEVICE_INFO_H_
-#include "rockchip_backend.h"
+#ifndef _ROCKCHIP_CODEC_INFO_H
+#define _ROCKCHIP_CODEC_INFO_H
+#include "rockchip_buffer.h"
 
-struct hw_codec_info *
-rk_get_codec_info(int devid);
+#define CODEC_DEC       0
+#define CODEC_ENC       1
+#define CODEC_PROC      2
+
+#define NUM_SLICES     10
+
+struct codec_state_base {
+	uint32_t chroma_formats;
+};
+
+struct decode_state {
+	struct codec_state_base base;
+	struct buffer_store *pic_param;
+	struct buffer_store **slice_params;
+	struct buffer_store *iq_matrix;
+	struct buffer_store *bit_plane;
+	struct buffer_store *huffman_table;
+	struct buffer_store **slice_datas;
+	struct buffer_store *probability_data;
+
+	int max_slice_params;
+	int num_slice_params;
+
+	int max_slice_datas;
+	int num_slice_datas;
+
+	VASurfaceID current_render_target;
+	struct object_surface *render_object;
+	struct object_surface *reference_objects[16];	/* Up to 2 reference surfaces are valid for MPEG-2, */
+};
+
+union codec_state {
+	struct codec_state_base base;
+	struct decode_state decode;
+	struct codec_state_base encode;
+	struct codec_state_base proc;
+};
 
 #endif

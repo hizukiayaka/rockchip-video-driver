@@ -32,6 +32,7 @@
 #include <va/va.h>
 #include <va/va_backend.h>
 #include "rockchip_driver.h"
+#include "rockchip_decoder_dummy.h"
 
 static VAStatus
 generate_image_i420(uint8_t *image_data, const VARectangle *rect, 

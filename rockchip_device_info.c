@@ -24,14 +24,8 @@
  *
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include <errno.h>
-#include "rockchip_driver.h"
+#include "common.h"
 #include "rockchip_device_info.h"
-#include "rockchip_backend.h"
 
 /* Extra set of chroma formats supported for H.264 decoding (beyond YUV 4:2:0) */
 #define EXTRA_H264_DEC_CHROMA_FORMATS \

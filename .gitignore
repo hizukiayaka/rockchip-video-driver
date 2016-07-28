@@ -22,9 +22,11 @@ config.log
 config.status
 config.sub
 configure
-debian/files
-debian/*.substvars
-debian/libva-rockchip1/
+/debian/files
+/debian/*.substvars
+/debian/libva-rockchip1/
+/debian/libva-rockchip1-dbg/
+/obj-*
 debian.upstream/changelog
 debian.upstream/control
 debian.upstream/libva-drm*.install
@@ -69,3 +71,4 @@ CMakeCache.txt
 *\.so
 cmake_install.cmake
 install_manifest.txt
+/build

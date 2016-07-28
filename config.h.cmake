@@ -27,5 +27,7 @@
 #define _CONFIG_H_
 
 #cmakedefine VA_DRIVER_INIT_FUNC ${VA_DRIVER_INIT_FUNC}
+#cmakedefine VAAPI_SUPPORT_HEVC ${VAAPI_SUPPORT_HEVC}
+#cmakedefine VAAPI_SUPPORT_VP9 ${VAAPI_SUPPORT_VP9}
 
 #endif

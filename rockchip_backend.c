@@ -29,29 +29,120 @@
 #include "rockchip_backend.h"
 #include "rockchip_decoder_dummy.h"
 
-struct hw_context *
-rk3288_dec_hw_context_init
-(VADriverContextP ctx, struct object_config *obj_config)
-{
+struct hw_context *rk3288_dec_hw_context_init
+    (VADriverContextP ctx, struct object_config *obj_config) {
 	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
 
 #if 1
-	struct rk_decoder_dummy_context *dummy_ctx = 
-		malloc(sizeof(struct rk_decoder_dummy_context));
+	struct rk_decoder_dummy_context *dummy_ctx =
+	    malloc(sizeof(struct rk_decoder_dummy_context));
 
 	if (NULL == dummy_ctx)
 		return NULL;
 
 	dummy_ctx->base.run = rk_decoder_dummy_decode_picture;
 
-	return (struct hw_context *)dummy_ctx;
+	return (struct hw_context *) dummy_ctx;
 #endif
 
 }
 
-struct hw_context *
-rk3288_enc_hw_context_init
-(VADriverContextP ctx, struct object_config *obj_config)
-{
+struct hw_context *rk3288_enc_hw_context_init
+    (VADriverContextP ctx, struct object_config *obj_config) {
 	return NULL;
+}
+
+/* Render Buffer */
+#define ROCKCHIP_RENDER_BUFFER(category, name) rockchip_render_##category##_##name##_buffer(ctx, obj_context, obj_buffer)
+
+#define DEF_RENDER_SINGLE_BUFFER_FUNC(category, name, member)           \
+    static VAStatus                                                     \
+    rockchip_render_##category##_##name##_buffer(VADriverContextP ctx,      \
+                                             struct object_context *obj_context, \
+                                             struct object_buffer *obj_buffer) \
+    {                                                                   \
+        struct category##_state *category = &obj_context->codec_state.category; \
+        rockchip_release_buffer_store(&category->member);                   \
+        rockchip_reference_buffer_store(&category->member, obj_buffer->buffer_store); \
+        return VA_STATUS_SUCCESS;                                       \
+    }
+
+#define DEF_RENDER_MULTI_BUFFER_FUNC(category, name, member)            \
+    static VAStatus                                                     \
+    rockchip_render_##category##_##name##_buffer(VADriverContextP ctx,      \
+                                             struct object_context *obj_context, \
+                                             struct object_buffer *obj_buffer) \
+    {                                                                   \
+        struct category##_state *category = &obj_context->codec_state.category; \
+        if (category->num_##member == category->max_##member) {         \
+            category->member = realloc(category->member, (category->max_##member + NUM_SLICES) * sizeof(*category->member)); \
+            memset(category->member + category->max_##member, 0, NUM_SLICES * sizeof(*category->member)); \
+            category->max_##member += NUM_SLICES;                       \
+        }                                                               \
+        rockchip_release_buffer_store(&category->member[category->num_##member]); \
+        rockchip_reference_buffer_store(&category->member[category->num_##member], obj_buffer->buffer_store); \
+        category->num_##member++;                                       \
+        return VA_STATUS_SUCCESS;                                       \
+    }
+
+/* Decoder Render */
+#define ROCKCHIP_RENDER_DECODE_BUFFER(name) ROCKCHIP_RENDER_BUFFER(decode, name)
+
+#define DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(name, member) DEF_RENDER_SINGLE_BUFFER_FUNC(decode, name, member)
+DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(picture_parameter, pic_param)
+DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(iq_matrix, iq_matrix)
+DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(bit_plane, bit_plane)
+DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(huffman_table, huffman_table)
+DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(probability_data, probability_data)
+
+#define DEF_RENDER_DECODE_MULTI_BUFFER_FUNC(name, member) DEF_RENDER_MULTI_BUFFER_FUNC(decode, name, member)
+DEF_RENDER_DECODE_MULTI_BUFFER_FUNC(slice_parameter, slice_params)
+DEF_RENDER_DECODE_MULTI_BUFFER_FUNC(slice_data, slice_datas)
+
+VAStatus
+rockchip_decoder_render_picture(VADriverContextP ctx, VAContextID context,
+VABufferID * buffers, int num_buffers)
+{
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	struct object_context *obj_context = CONTEXT(context);
+
+	VAStatus vaStatus = VA_STATUS_SUCCESS;
+	int i;
+
+	/* verify that we got valid buffer references */
+	for (i = 0; i < num_buffers; i++) {
+		object_buffer_p obj_buffer = BUFFER(buffers[i]);
+		ASSERT(obj_buffer);
+		if (NULL == obj_buffer) {
+			return VA_STATUS_ERROR_INVALID_BUFFER;
+		}
+		switch (obj_buffer->type) {
+		case VAPictureParameterBufferType:
+			vaStatus =
+			    ROCKCHIP_RENDER_DECODE_BUFFER(picture_parameter);
+			break;
+		case VAIQMatrixBufferType:
+			vaStatus =
+			    ROCKCHIP_RENDER_DECODE_BUFFER(iq_matrix);
+			break;
+		case VABitPlaneBufferType:
+			vaStatus =
+			    ROCKCHIP_RENDER_DECODE_BUFFER(bit_plane);
+			break;
+		case VASliceParameterBufferType:
+			vaStatus =
+			    ROCKCHIP_RENDER_DECODE_BUFFER(slice_parameter);
+			break;
+		case VASliceDataBufferType:
+			vaStatus =
+			    ROCKCHIP_RENDER_DECODE_BUFFER(slice_data);
+			break;
+
+		default:
+			vaStatus = VA_STATUS_ERROR_UNSUPPORTED_BUFFERTYPE;
+			break;
+		}
+	}
+
+	return vaStatus;
 }
