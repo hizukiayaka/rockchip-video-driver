@@ -23,9 +23,10 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  */
-#ifndef _CONFIG_H_
-#define _CONFIG_H_
 
-#cmakedefine VA_DRIVER_INIT_FUNC ${VA_DRIVER_INIT_FUNC}
+#ifndef _ROCKCHIP_DEVICE_INFO_H_
+#define _ROCKCHIP_DEVICE_INFO_H_
+struct hw_codec_info *
+rk_get_codec_info(int devid);
 
 #endif

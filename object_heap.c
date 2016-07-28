@@ -22,11 +22,8 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <stdlib.h>
-#include <assert.h>
+#include "common.h"
 #include "object_heap.h"
-
-#define ASSERT  assert
 
 #define LAST_FREE   -1
 #define ALLOCATED   -2

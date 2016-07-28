@@ -23,9 +23,23 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  */
-#ifndef _CONFIG_H_
-#define _CONFIG_H_
 
-#cmakedefine VA_DRIVER_INIT_FUNC ${VA_DRIVER_INIT_FUNC}
+#ifndef _COMMON_H_
+#define _COMMON_H_
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <assert.h>
+
+#define ASSERT  assert
+
+#define ASSERT_RET(value, fail_ret) do {    \
+	if (!(value)) {                     \
+		assert(value);              \
+		return fail_ret;                \
+	}                                   \
+      } while (0)
 
 #endif
