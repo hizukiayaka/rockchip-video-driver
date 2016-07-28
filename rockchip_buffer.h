@@ -24,11 +24,14 @@
  *
  */
 
-#ifndef _ROCKCHIP_DEVICE_INFO_H_
-#define _ROCKCHIP_DEVICE_INFO_H_
-#include "rockchip_backend.h"
+#ifndef _ROCKCHIP_BUFFER_H_
+#define _ROCKCHIP_BUFFER_H_
+#include "common.h"
 
-struct hw_codec_info *
-rk_get_codec_info(int devid);
+struct buffer_store {
+	uint8_t *buffer;
+	int32_t ref_count;
+	int32_t num_elements;
+};
 
 #endif

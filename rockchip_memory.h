@@ -24,11 +24,21 @@
  *
  */
 
-#ifndef _ROCKCHIP_DEVICE_INFO_H_
-#define _ROCKCHIP_DEVICE_INFO_H_
-#include "rockchip_backend.h"
+#ifndef _ROCKCHIP_MEMORY_H_
+#define _ROCKCHIP_MEMORY_H_
+#include "common.h"
+#include "rockchip_driver.h"
 
-struct hw_codec_info *
-rk_get_codec_info(int devid);
+void
+rockchip_reference_buffer_store(struct buffer_store **ptr, 
+struct buffer_store *buffer_store);
+
+void rockchip_release_buffer_store(struct buffer_store **ptr);
+
+VAStatus 
+rockchip_allocate_buffer
+(VADriverContextP ctx, VAContextID context,  VABufferType type, 
+unsigned int size, unsigned int num_elements, 
+void *data, VABufferID * buf_id);
 
 #endif

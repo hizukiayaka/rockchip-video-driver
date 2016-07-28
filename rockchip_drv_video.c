@@ -30,6 +30,7 @@
 
 #include "rockchip_driver.h"
 #include "rockchip_device_info.h"
+#include "rockchip_backend.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,18 +45,6 @@
 #define BUFFER_ID_OFFSET		0x08000000
 #define IMAGE_ID_OFFSET			0x0a000000
 #define SUBPIC_ID_OFFSET                0x10000000
-
-#define HAS_MPEG2_DECODING(ctx)  ((ctx)->codec_info->has_mpeg2_decoding)
-#define HAS_MPEG2_ENCODING(ctx)  ((ctx)->codec_info->has_mpeg2_encoding)
-#define HAS_H264_DECODING(ctx)  ((ctx)->codec_info->has_h264_decoding)
-#define HAS_H264_ENCODING(ctx)  ((ctx)->codec_info->has_h264_encoding)
-#define HAS_VC1_DECODING(ctx)   ((ctx)->codec_info->has_vc1_decoding)
-#define HAS_JPEG_DECODING(ctx)  ((ctx)->codec_info->has_jpeg_decoding)
-#define HAS_JPEG_ENCODING(ctx)  ((ctx)->codec_info->has_jpeg_encoding)
-#define HAS_VP8_DECODING(ctx)   ((ctx)->codec_info->has_vp8_decoding)
-#define HAS_VP8_ENCODING(ctx)   ((ctx)->codec_info->has_vp8_encoding)
-
-#define HAS_HEVC_DECODING(ctx)          ((ctx)->codec_info->has_hevc_decoding)
 
 enum {
     ROCKCHIP_SURFACETYPE_YUV,
@@ -114,36 +103,6 @@ static void rockchip_information_message(const char *msg, ...)
     va_end(args);
 }
 
-void
-rockchip_reference_buffer_store(struct buffer_store **ptr,
-	struct buffer_store *buffer_store)
-{
-	assert(*ptr == NULL);
-	if (buffer_store) {
-		buffer_store->ref_count++;
-		*ptr = buffer_store;
-	}
-}
-
-void
-rockchip_release_buffer_store(struct buffer_store **ptr)
-{
-	struct buffer_store *buffer_store = *ptr;
-	if (NULL == buffer_store)
-		return;
-
-	assert(buffer_store->buffer);
-	buffer_store->ref_count--;
-
-	if (0 == buffer_store->ref_count) {
-		free(buffer_store->buffer);
-		buffer_store->buffer = NULL;
-		free(buffer_store);
-	}
-
-	*ptr = NULL;
-}
-
 static VAStatus rockchip_QueryConfigProfiles(
 		VADriverContextP ctx,
 		VAProfile *profile_list,	/* out */
@@ -182,16 +141,15 @@ static VAStatus rockchip_QueryConfigProfiles(
         profile_list[i++] = VAProfileVP8Version0_3;
     }
 
-#if 0
+#if VAAPI_SUPPORT_HEVC
     if (HAS_HEVC_DECODING(rk_data)||
         HAS_HEVC_ENCODING(rk_data)) {
         profile_list[i++] = VAProfileHEVCMain;
     }
 
-    if (HAS_HEVC10_DECODING(rk_data)) {
-        profile_list[i++] = VAProfileHEVCMain10;
-    }
+#endif
 
+#if VAAPI_SUPPORT_VP9
     if(HAS_VP9_DECODING_PROFILE(rk_data, VAProfileVP9Profile0) ||
         HAS_VP9_ENCODING(rk_data)) {
         profile_list[i++] = VAProfileVP9Profile0;
@@ -244,12 +202,32 @@ static VAStatus rockchip_QueryConfigEntrypoints(
                 entrypoint_list[n++] = VAEntrypointVLD;
 
 	    break;
+
+#if VAAPI_SUPPORT_HEVC
+	case VAProfileHEVCMain:
+	    if (HAS_HEVC_DECODING(rk_data))
+		    entrypoint_list[n++] = VAEntrypointVLD;
+	    if (HAS_HEVC_ENCODING(rk_data))
+		    entrypoint_list[n++] = VAEntrypointEncSlice;
+
+	    break;
+#endif
+#if VAAPI_SUPPORT_VP9
+	case VAProfileVP9Profile0:
+	case VAProfileVP9Profile2:
+	    if(HAS_VP9_DECODING_PROFILE(rk_data, profile))
+		    entrypoint_list[n++] = VAEntrypointVLD;
+	    if (HAS_VP9_ENCODING(rk_data))
+		    entrypoint_list[n++] = VAEntrypointEncSlice;
+
+	    break;
+#endif
         default:
             break;
     }
 
     /* If the assert fails then ROCKCHIP_MAX_ENTRYPOINTS needs to be bigger */
-    ASSERT_RET(*num_entrypoints <= ROCKCHIP_MAX_ENTRYPOINTS, 
+    ASSERT_RET(n <= ROCKCHIP_MAX_ENTRYPOINTS, 
 		   VA_STATUS_ERROR_OPERATION_FAILED);
     *num_entrypoints = n;
 
@@ -702,9 +680,9 @@ get_image_i420(struct object_image *obj_image, uint8_t *image_data,
 	dst[U] = image_data + obj_image->image.offsets[U];
 	dst[V] = image_data + obj_image->image.offsets[V];
 
-	memset(dst[Y], 0, rect->width * rect->height);
-	memset(dst[U], 128, (rect->width / 2) * (rect->height / 2));
-	memset(dst[V], 128, (rect->width / 2) * (rect->height / 2));
+	memset(dst[Y], 77, rect->width * rect->height);
+	memset(dst[U], 212, (rect->width / 2) * (rect->height / 2));
+	memset(dst[V], 89, (rect->width / 2) * (rect->height / 2));
 
 	rx = cos(7 * t / 3.14 / 25 * 100 / rect->width);
 	ry = sin(6 * t / 3.14 / 25 * 100 / rect->width);
@@ -1012,73 +990,6 @@ static VAStatus rockchip_DestroyContext(
     return VA_STATUS_SUCCESS;
 }
 
-static VAStatus rockchip_allocate_buffer
-(VADriverContextP ctx, VAContextID context, VABufferType type,
-unsigned int size, unsigned int num_elements, void *data, VABufferID *buf_id)
-{
-    struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
-    VAStatus vaStatus = VA_STATUS_ERROR_UNKNOWN;
-    struct object_buffer *obj_buffer;
-    struct buffer_store *buffer_store = NULL;
-    int bufferID;
-
-    /* Validate type */
-    switch (type)
-    {
-    case VAPictureParameterBufferType:
-    case VAIQMatrixBufferType:
-    case VABitPlaneBufferType:
-    case VASliceGroupMapBufferType:
-    case VASliceParameterBufferType:
-    case VASliceDataBufferType:
-    case VAMacroblockParameterBufferType:
-    case VAResidualDataBufferType:
-    case VADeblockingParameterBufferType:
-    case VAImageBufferType:
-        /* Ok */
-        break;
-    default:
-        return VA_STATUS_ERROR_UNSUPPORTED_BUFFERTYPE;
-    }
-
-    bufferID = object_heap_allocate( &rk_data->buffer_heap );
-    obj_buffer = BUFFER(bufferID);
-    if (NULL == obj_buffer)
-    {
-        return VA_STATUS_ERROR_ALLOCATION_FAILED;
-    }
-
-    obj_buffer->max_num_elements = num_elements;
-    obj_buffer->num_elements = num_elements;
-    obj_buffer->size_element = size;
-    obj_buffer->type = type;
-    obj_buffer->buffer_store = NULL;
-
-    buffer_store = calloc(1, sizeof(struct buffer_store));
-    assert(buffer_store);
-    buffer_store->ref_count = 1;
-
-    /* FIXME you need improve performance here, using something like DRI */
-    int msize = size;
-
-    buffer_store->buffer = malloc(msize * num_elements);
-
-    if (data)
-    {
-        assert(buffer_store->buffer);
-        memcpy(buffer_store->buffer, data, size * num_elements);
-    }
-
-    buffer_store->num_elements = obj_buffer->num_elements;
-    rockchip_reference_buffer_store(&obj_buffer->buffer_store, buffer_store);
-    rockchip_release_buffer_store(&buffer_store);
-    *buf_id = bufferID;
-    /* FIXME the status should be update somewhere */
-    vaStatus = VA_STATUS_SUCCESS;
-
-    return vaStatus;
-}
-
 static VAStatus rockchip_CreateBuffer(
 		VADriverContextP ctx,
                 VAContextID context,	/* in */
@@ -1216,77 +1127,6 @@ static VAStatus rockchip_BeginPicture(
     return vaStatus;
 }
 
-#define ROCKCHIP_RENDER_BUFFER(category, name) rockchip_render_##category##_##name##_buffer(ctx, obj_context, obj_buffer)
-
-#define DEF_RENDER_SINGLE_BUFFER_FUNC(category, name, member)           \
-    static VAStatus                                                     \
-    i965_render_##category##_##name##_buffer(VADriverContextP ctx,      \
-                                             struct object_context *obj_context, \
-                                             struct object_buffer *obj_buffer) \
-    {                                                                   \
-        struct category##_state *category = &obj_context->codec_state.category; \
-        rockchip_release_buffer_store(&category->member);                   \
-        rockchip_reference_buffer_store(&category->member, obj_buffer->buffer_store); \
-        return VA_STATUS_SUCCESS;                                       \
-    }
-
-#define DEF_RENDER_MULTI_BUFFER_FUNC(category, name, member)            \
-    static VAStatus                                                     \
-    rockchip_render_##category##_##name##_buffer(VADriverContextP ctx,      \
-                                             struct object_context *obj_context, \
-                                             struct object_buffer *obj_buffer) \
-    {                                                                   \
-        struct category##_state *category = &obj_context->codec_state.category; \
-        if (category->num_##member == category->max_##member) {         \
-            category->member = realloc(category->member, (category->max_##member + NUM_SLICES) * sizeof(*category->member)); \
-            memset(category->member + category->max_##member, 0, NUM_SLICES * sizeof(*category->member)); \
-            category->max_##member += NUM_SLICES;                       \
-        }                                                               \
-        rockchip_release_buffer_store(&category->member[category->num_##member]); \
-        rockchip_reference_buffer_store(&category->member[category->num_##member], obj_buffer->buffer_store); \
-        category->num_##member++;                                       \
-        return VA_STATUS_SUCCESS;                                       \
-    }
-
-#define ROCKCHIP_RENDER_DECODE_BUFFER(name) ROCKCHIP_RENDER_BUFFER(decode, name)
-#define DEF_RENDER_DECODE_MULTI_BUFFER_FUNC(name, member) DEF_RENDER_MULTI_BUFFER_FUNC(decode, name, member)
-DEF_RENDER_DECODE_MULTI_BUFFER_FUNC(slice_data, slice_datas)
-
-
-static VAStatus
-rockchip_decoder_render_picture(VADriverContextP ctx, VAContextID context, 
-	VABufferID *buffers, int num_buffers)
-{
-    struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
-    struct object_context *obj_context = CONTEXT(context);
-
-    VAStatus vaStatus = VA_STATUS_SUCCESS;
-    int i;
-
-    /* verify that we got valid buffer references */
-    for(i = 0; i < num_buffers; i++)
-    {
-        object_buffer_p obj_buffer = BUFFER(buffers[i]);
-        ASSERT(obj_buffer);
-        if (NULL == obj_buffer)
-        {
-            return VA_STATUS_ERROR_INVALID_BUFFER;
-        }
-	switch (obj_buffer->type) {
-	case VASliceDataBufferType:
-		vaStatus = ROCKCHIP_RENDER_DECODE_BUFFER(slice_data);
-		break;
-	default:
-	/* FIXME it should assign the correct render for 
-	 * different buffer type 
-	 */
-		vaStatus = ROCKCHIP_RENDER_DECODE_BUFFER(slice_data);
-		break;
-	}
-    }
-
-    return vaStatus;
-}
 
 static VAStatus rockchip_RenderPicture(
 		VADriverContextP ctx,
@@ -1334,8 +1174,7 @@ static VAStatus rockchip_EndPicture(
 		VAContextID context
 	)
 {
-    INIT_DRIVER_DATA
-    VAStatus vaStatus = VA_STATUS_SUCCESS;
+    struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
     struct object_context *obj_context;
     struct object_surface *obj_surface;
     struct object_config *obj_config;
@@ -1374,6 +1213,7 @@ static VAStatus rockchip_SyncSurface(
     obj_surface = SURFACE(render_target);
     ASSERT(obj_surface);
 
+    /* TODO */
     return vaStatus;
 }
 
@@ -1390,6 +1230,7 @@ static VAStatus rockchip_QuerySurfaceStatus(
     obj_surface = SURFACE(render_target);
     ASSERT(obj_surface);
 
+    /* TODO */
     *status = VASurfaceReady;
 
     return vaStatus;
