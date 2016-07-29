@@ -1111,18 +1111,49 @@ static VAStatus rockchip_BeginPicture(
 		VASurfaceID render_target
 	)
 {
-    INIT_DRIVER_DATA
+    struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
     VAStatus vaStatus = VA_STATUS_SUCCESS;
-    object_context_p obj_context;
-    object_surface_p obj_surface;
+    struct object_context *obj_context;
+    struct object_surface *obj_surface;
+	struct object_config *obj_config;
 
     obj_context = CONTEXT(context);
-    ASSERT(obj_context);
+    ASSERT_RET(obj_context, VA_STATUS_ERROR_INVALID_CONTEXT);
 
     obj_surface = SURFACE(render_target);
-    ASSERT(obj_surface);
+    ASSERT_RET(obj_surface, VA_STATUS_ERROR_INVALID_SURFACE);
 
-    obj_context->current_render_target = obj_surface->base.id;
+    obj_config = CONFIG(obj_context->config_id);
+	ASSERT_RET(obj_config, VA_STATUS_ERROR_INVALID_CONFIG);
+
+	/* Decoder */
+    if (VAEntrypointVLD == obj_config->entrypoint) {
+    	obj_context->current_render_target = obj_surface->base.id;
+
+		/* Cleanup the buffers from the last state */
+		rockchip_release_buffer_store
+				(&obj_context->codec_state.decode.pic_param);
+		rockchip_release_buffer_store
+				(&obj_context->codec_state.decode.iq_matrix);
+		rockchip_release_buffer_store
+				(&obj_context->codec_state.decode.bit_plane);
+		rockchip_release_buffer_store
+				(&obj_context->codec_state.decode.huffman_table);
+
+		for (int32_t i = 0; 
+					i < obj_context->codec_state.decode.num_slice_params; i++) 
+		{
+			rockchip_release_buffer_store
+					(&obj_context->codec_state.decode.slice_params[i]);
+			rockchip_release_buffer_store
+					(&obj_context->codec_state.decode.slice_datas[i]);
+		}
+
+		obj_context->codec_state.decode.num_slice_params = 0;
+		obj_context->codec_state.decode.num_slice_datas = 0;
+
+		/* You could do more hardware related cleanup here */
+    }
 
     return vaStatus;
 }
@@ -1188,14 +1219,23 @@ static VAStatus rockchip_EndPicture(
 
     if (obj_context->codec_type == CODEC_DEC)
     {
+		/* Basic check here */
+		if (obj_context->codec_state.decode.pic_param == NULL) {
+			return VA_STATUS_ERROR_INVALID_PARAMETER;
+		}
+		if (obj_context->codec_state.decode.num_slice_params <=0) {
+			return VA_STATUS_ERROR_INVALID_PARAMETER;
+		}
 	    if (obj_context->codec_state.decode.num_slice_datas <=0) {
 		    return VA_STATUS_ERROR_INVALID_PARAMETER;
 	    }
+		if (obj_context->codec_state.decode.num_slice_params !=
+					obj_context->codec_state.decode.num_slice_datas) {
+		    return VA_STATUS_ERROR_INVALID_PARAMETER;
+		}
     }
 
-    // For now, assume that we are done with rendering right away
-    obj_context->current_render_target = -1;
-
+	/* Hardware relative code */
     ASSERT_RET(obj_context->hw_context->run, VA_STATUS_ERROR_OPERATION_FAILED);
     return obj_context->hw_context->run(ctx, obj_config->profile, 
 		    &obj_context->codec_state, obj_context->hw_context);
