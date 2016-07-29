@@ -905,7 +905,6 @@ static VAStatus rockchip_CreateContext(
 
     obj_context->context_id  = contextID;
     *context = contextID;
-    obj_context->current_render_target = -1;
     obj_context->config_id = config_id;
     obj_context->picture_width = picture_width;
     obj_context->picture_height = picture_height;
@@ -982,8 +981,6 @@ static VAStatus rockchip_DestroyContext(
     obj_context->render_targets = NULL;
     obj_context->num_render_targets = 0;
     obj_context->flags = 0;
-
-    obj_context->current_render_target = -1;
 
     object_heap_free(&rk_data->context_heap, (object_base_p) obj_context);
 
@@ -1128,7 +1125,8 @@ static VAStatus rockchip_BeginPicture(
 
 	/* Decoder */
     if (VAEntrypointVLD == obj_config->entrypoint) {
-    	obj_context->current_render_target = obj_surface->base.id;
+		/* render_target */
+		obj_context->codec_state.decode.current_render_target = obj_surface->base.id;
 
 		/* Cleanup the buffers from the last state */
 		rockchip_release_buffer_store
@@ -1169,7 +1167,6 @@ static VAStatus rockchip_RenderPicture(
     struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
 
     struct object_context *obj_context;
-    struct object_surface *obj_surface;
     struct object_config *obj_config;
 
     VAStatus vaStatus = VA_STATUS_ERROR_UNKNOWN;
@@ -1178,9 +1175,6 @@ static VAStatus rockchip_RenderPicture(
     ASSERT_RET(obj_context, VA_STATUS_ERROR_INVALID_CONTEXT);
     obj_config = CONFIG(obj_context->config_id);
     ASSERT_RET(obj_config, VA_STATUS_ERROR_INVALID_CONFIG);
-
-    obj_surface = SURFACE(obj_context->current_render_target);
-    ASSERT(obj_surface);
 
     if (VAEntrypointVLD == obj_config->entrypoint) {
        vaStatus = rockchip_decoder_render_picture(ctx, context, 
@@ -1207,14 +1201,11 @@ static VAStatus rockchip_EndPicture(
 {
     struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
     struct object_context *obj_context;
-    struct object_surface *obj_surface;
     struct object_config *obj_config;
 
     obj_context = CONTEXT(context);
     ASSERT(obj_context);
 
-    obj_surface = SURFACE(obj_context->current_render_target);
-    ASSERT(obj_surface);
     obj_config = CONFIG(obj_context->config_id);
 
     if (obj_context->codec_type == CODEC_DEC)
