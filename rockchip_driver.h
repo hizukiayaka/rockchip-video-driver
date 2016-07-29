@@ -31,6 +31,7 @@
 #include <va/va.h>
 #include <va/va_backend.h>
 #include <va/va_vpp.h>
+#include <pthread.h>
 #include "object_heap.h"
 #include "rockchip_buffer.h"
 #include "rockchip_codec_info.h"
@@ -90,7 +91,6 @@ struct object_context {
 	struct object_base base;
 	VAContextID context_id;
 	VAConfigID config_id;
-	VASurfaceID current_render_target;
 	VASurfaceID *render_targets;
 	int num_render_targets;
 	int picture_width;
@@ -113,6 +113,9 @@ struct object_surface {
 	 * Only used by decoder dummy to hold output now
 	 */
 	void *buffer;
+	uint32_t num_buffers;
+	pthread_mutex_t locker;
+	pthread_cond_t wait_list;
 };
 
 struct object_buffer {
