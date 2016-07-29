@@ -33,9 +33,6 @@ struct rk_decoder_dummy_context {
 	int32_t index;
 };
 
-VAStatus
-rk_decoder_dummy_decode_picture
-(VADriverContextP ctx, VAProfile profile, 
-union codec_state *codec_state, struct hw_context *hw_context);
+struct hw_context *decoder_dummy_create_context();
 
 #endif
