@@ -28,6 +28,16 @@
 #define _ROCKCHIP_CODEC_INFO_H
 #include "rockchip_buffer.h"
 
+#define ENTROPY_CAVLD           0
+#define ENTROPY_CABAC           1
+
+/* Used for the identification of VASliceParameterBufferH264->slice_type */
+#define SLICE_TYPE_P            0
+#define SLICE_TYPE_B            1
+#define SLICE_TYPE_I            2
+#define SLICE_TYPE_SP           3
+#define SLICE_TYPE_SI           4
+
 #define CODEC_DEC       0
 #define CODEC_ENC       1
 #define CODEC_PROC      2
