@@ -32,6 +32,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
+#include "config.h"
 
 #define ASSERT  assert
 

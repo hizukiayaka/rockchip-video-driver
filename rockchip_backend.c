@@ -33,23 +33,19 @@ struct hw_context *rk3288_dec_hw_context_init
     (VADriverContextP ctx, struct object_config *obj_config) {
 	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
 
-#if 1
-	struct rk_decoder_dummy_context *dummy_ctx =
-	    malloc(sizeof(struct rk_decoder_dummy_context));
-
-	if (NULL == dummy_ctx)
-		return NULL;
-
-	dummy_ctx->base.run = rk_decoder_dummy_decode_picture;
-
-	return (struct hw_context *) dummy_ctx;
+	struct hw_context *hw_ctx = NULL;
+#ifdef DECODER_BACKEND_DUMMY
+	hw_ctx = decoder_dummy_create_context();
 #endif
+	return hw_ctx;
 
 }
 
 struct hw_context *rk3288_enc_hw_context_init
     (VADriverContextP ctx, struct object_config *obj_config) {
-	return NULL;
+	struct hw_context *hw_ctx = NULL;
+
+	return hw_ctx;
 }
 
 /* Render Buffer */
