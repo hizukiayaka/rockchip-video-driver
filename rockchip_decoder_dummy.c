@@ -33,7 +33,6 @@
 #include <va/va_backend.h>
 #include "rockchip_driver.h"
 
-#if 0
 static VAStatus
 generate_image_i420(uint8_t *image_data, const VARectangle *rect, 
 uint32_t square_index, uint32_t square_size)
@@ -69,19 +68,90 @@ uint32_t square_index, uint32_t square_size)
 
 	return va_status;
 }
-#endif
 
-VAStatus
+static VAStatus
 rk_decoder_dummy_decode_picture
 (VADriverContextP ctx, VAProfile profile, 
 union codec_state *codec_state, struct hw_context *hw_context)
 {
 	struct rk_decoder_dummy_context *rk_dummy_ctx =
 		(struct rk_decoder_dummy_context *)hw_context;
+	struct decode_state *decode_state = &codec_state->decode;
 
 	VAStatus vaStatus;
+	uint8_t *slice_data;
+	VAPictureParameterBufferH264 *pic_param;
+	VASliceParameterBufferH264 *slice_param, *next_slice_param, 
+				   *next_slice_group_param;
+
 
 	assert(rk_dummy_ctx);
 
+	for (int32_t i = 0; i < decode_state->num_slice_params; i++)
+	{
+		assert(decode_state->slice_params 
+				&& decode_state->slice_params[i]->buffer);
+		slice_param = (VASliceParameterBufferH264 *)
+			decode_state->slice_params[i]->buffer;
+		slice_data = decode_state->slice_datas[i]->buffer;
+
+		if (i == decode_state->num_slice_params - 1)
+			next_slice_group_param = NULL;
+		else
+			next_slice_group_param = (VASliceParameterBufferH264 *)
+				decode_state->slice_params[i + 1]->buffer;
+		if (i == 0 && slice_param->first_mb_in_slice)
+		{
+			/* 
+			 * First slice
+			 * Doing nothing here
+			 */
+		}
+
+		/* Process the number of slices that the param order */
+		for (int32_t j = 0; 
+			j < decode_state->slice_params[i]->num_elements; j++)
+		{
+			/* 
+			 * check whether the buffer is big enough to hold the 
+			 * whole slice, we only support process a the completely
+			 * slice data
+			 */
+			assert(slice_param->slice_data_flag == 
+					VA_SLICE_DATA_FLAG_ALL);
+			/* Only support those frame type for H.264 */
+			assert((slice_param->slice_type == SLICE_TYPE_I) ||
+				(slice_param->slice_type == SLICE_TYPE_SI) ||
+				(slice_param->slice_type == SLICE_TYPE_P) ||
+				(slice_param->slice_type == SLICE_TYPE_SP) ||
+				(slice_param->slice_type == SLICE_TYPE_B));
+
+			if (j < decode_state->slice_params[i]->num_elements - 1)
+				next_slice_param = slice_param + 1;
+			else
+				next_slice_param = next_slice_group_param;
+			/* Hardware job begin here */
+
+
+			/* Hardware job end here */
+			slice_param++;
+		}
+
+	}
+
 	return VA_STATUS_SUCCESS;
+}
+
+struct hw_context *
+decoder_dummy_create_context()
+{
+	struct rk_decoder_dummy_context *dummy_ctx =
+		malloc(sizeof(struct rk_decoder_dummy_context));
+
+	if (NULL == dummy_ctx)
+		return NULL;
+
+	dummy_ctx->base.run = rk_decoder_dummy_decode_picture;
+
+	return (struct hw_context *) dummy_ctx;
 }
