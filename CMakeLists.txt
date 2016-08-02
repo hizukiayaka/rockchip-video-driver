@@ -4,6 +4,7 @@ find_package(PkgConfig)
 PROJECT(rockchip_drv_video C)
 INCLUDE(GNUInstallDirs)
 
+pkg_search_module(PTHREAD pthread)
 # check the libva
 pkg_search_module(LIBVA libva)
 if(LIBVA_FOUND)
@@ -44,7 +45,7 @@ ADD_LIBRARY(rockchip_drv_video SHARED
 "${BUILD_IN_BACKEND}" 
 object_heap.c 
 rockchip_device_info.c rockchip_backend.c 
-rockchip_memory.c
+rockchip_memory.c rockchip_image.c
 rockchip_drv_video.c
 )
 
