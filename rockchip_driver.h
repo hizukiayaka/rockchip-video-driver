@@ -110,11 +110,11 @@ struct object_surface {
 	int orig_height;
 	int fourcc;
 
-#ifdef	DECODER_BACKEND_DUMMY
 	/* 
 	 * Only used by decoder dummy to hold output now
 	 */
 	void *buffer;
+#ifdef	DECODER_BACKEND_DUMMY
 	uint32_t num_buffers;
 	pthread_mutex_t locker;
 	pthread_cond_t wait_list;
