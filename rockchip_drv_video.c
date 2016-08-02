@@ -516,19 +516,22 @@ static VAStatus rockchip_DestroySurfaces(
 	)
 {
     struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
-    int i;
-    for(i = num_surfaces; i--; )
-    {
-        object_surface_p obj_surface = SURFACE(surface_list[i]);
-        ASSERT(obj_surface);
+    struct object_surface *obj_surface;
 
-	if (NULL != obj_surface->buffer)
+    for(int32_t i = num_surfaces; i > 0; i--)
+    {
+        obj_surface = SURFACE(surface_list[i - 1]);
+        ASSERT_RET(obj_surface, VA_STATUS_ERROR_INVALID_SURFACE);
+
+	if (NULL != obj_surface->buffer) {
 		free(obj_surface->buffer);
+		obj_surface->buffer = NULL;
+	}
 	pthread_mutex_destroy(&obj_surface->locker);
 	pthread_cond_destroy(&obj_surface->wait_list);
 	obj_surface->num_buffers = 0;
 
-        object_heap_free( &rk_data->surface_heap, (object_base_p) obj_surface);
+        object_heap_free(&rk_data->surface_heap, (object_base_p) obj_surface);
     }
     return VA_STATUS_SUCCESS;
 }
