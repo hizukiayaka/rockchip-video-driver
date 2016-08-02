@@ -30,8 +30,8 @@
 #include "rockchip_decoder_dummy.h"
 
 struct hw_context *rk3288_dec_hw_context_init
-    (VADriverContextP ctx, struct object_config *obj_config) {
-	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+    (VADriverContextP ctx, struct object_config *obj_config) 
+{
 
 	struct hw_context *hw_ctx = NULL;
 #ifdef DECODER_BACKEND_DUMMY
