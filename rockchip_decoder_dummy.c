@@ -34,40 +34,126 @@
 #include "rockchip_driver.h"
 #include "rockchip_decoder_dummy.h"
 
-static VAStatus
+VAStatus
 generate_image_i420(uint8_t *image_data, const VARectangle *rect, 
 uint32_t square_index, uint32_t square_size)
 {
 	uint8_t *dst[3];
-	/* Always YVU 4:2:0 */
+	/* Always YUV 4:2:0 */
 	const int Y = 0;
-	const int V = 1;
-	const int U = 2;
-	int x, y;
+	const int U = 1;
+	const int V = 2;
+	uint32_t x, y, size, size2;
 	double rx, ry;
-
 	VAStatus va_status = VA_STATUS_SUCCESS;
 
-	/* Dest VA image has either I420 or YV12 format. */
+	size = rect->width * rect->height;
+	size2 = (rect->width / 2) * (rect->height / 2);
 	dst[Y] = image_data;
-	dst[U] = image_data + (rect->width / 2) * (rect->height / 2);
-	dst[V] = image_data + 2 * ((rect->width / 2) * (rect->height / 2));
+	dst[U] = image_data + size;
+	dst[V] = image_data + size + size2;
 
-	memset(dst[Y], 0, rect->width * rect->height);
-	memset(dst[U], 128, (rect->width / 2) * (rect->height / 2));
-	memset(dst[V], 128, (rect->width / 2) * (rect->height / 2));
+	memset(dst[Y], 77, rect->width * rect->height);
+	memset(dst[U], 212, (rect->width / 2) * (rect->height / 2));
+	memset(dst[V], 89, (rect->width / 2) * (rect->height / 2));
 
 	rx = cos(7 * square_index / 3.14 / 25 * 100 / rect->width);
 	ry = sin(6 * square_index / 3.14 / 25 * 100 / rect->width);
 
 	x = (rx + 1) / 2 * (rect->width - 2 * square_size) + square_size;
 	y = (ry + 1) / 2 * (rect->height - 2 * square_size) + square_size;
+	x %= rect->width;
+	y %= rect->height;
 
 	for(int i = MIN(square_size, rect->width) - 1; i >= 0; i--)
 		for(int j = MIN(square_size, rect->height) - 1; j >= 0; --j)
 			dst[Y][x + i + (y + j) * rect->width] = 255;
 
 	return va_status;
+}
+
+static void
+dummy_decoder_h264_output(VADriverContextP ctx, 
+	struct rk_decoder_dummy_context *rk_dummy_ctx, 
+	VAPictureParameterBufferH264 *pic_param,
+	VASliceParameterBufferH264 *slice_param,
+	uint8_t *slice_data,
+	VASliceParameterBufferH264 *next_slice_param)
+{
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	struct object_context *obj_context;
+	struct object_surface *obj_surface;
+
+	obj_context = CONTEXT(rk_data->current_context_id);
+	ASSERT(obj_context);
+
+	obj_surface = 
+	SURFACE(obj_context->codec_state.decode.current_render_target);
+	ASSERT(obj_surface);
+
+
+	/* the last slice I think */
+	if (NULL == next_slice_param)
+	{
+		VARectangle rect;
+		uint32_t square_size, index;
+
+		rect.width = obj_surface->orig_width;
+		rect.height = obj_surface->orig_height;
+
+		if (slice_param->slice_data_size > rect.width
+		    || slice_param->slice_data_size > rect.height)
+			square_size = slice_param->slice_data_size / rect.width;
+		else
+			square_size = slice_param->slice_data_size;
+
+		index = rand() % (slice_param->slice_data_size + 1);
+
+		generate_image_i420(obj_surface->buffer, &rect, 
+			slice_data[index], 
+			square_size);
+
+		pthread_mutex_lock(&obj_surface->locker);
+		obj_surface->num_buffers++;
+		pthread_cond_signal(&obj_surface->wait_list);
+		pthread_mutex_unlock(&obj_surface->locker);
+	}
+
+}
+
+static bool
+rk_decoder_dummy_sync(VADriverContextP ctx,
+VASurfaceID render_target)
+{
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	struct object_surface *obj_surface;
+
+	obj_surface = SURFACE(render_target);
+	ASSERT(obj_surface);
+
+	pthread_mutex_lock(&obj_surface->locker);
+
+	while (obj_surface->num_buffers < 1)
+	{
+		pthread_cond_wait(&obj_surface->wait_list, 
+			&obj_surface->locker);
+	}
+	pthread_mutex_unlock(&obj_surface->locker);
+
+	return true;
+}
+
+static VASurfaceStatus
+rk_decoder_dummy_status(VADriverContextP ctx, VASurfaceID render_target)
+{
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	struct object_surface *obj_surface = SURFACE(render_target);
+
+	if (obj_surface->num_buffers && (NULL != obj_surface->buffer)) {
+		return VASurfaceReady;
+	}
+	else
+		return VASurfaceRendering;
 }
 
 static VAStatus
@@ -81,7 +167,7 @@ union codec_state *codec_state, struct hw_context *hw_context)
 
 	VAStatus vaStatus;
 	uint8_t *slice_data;
-	VAPictureParameterBufferH264 *pic_param;
+	VAPictureParameterBufferH264 *pic_param = NULL;
 	VASliceParameterBufferH264 *slice_param, *next_slice_param, 
 				   *next_slice_group_param;
 
@@ -132,8 +218,8 @@ union codec_state *codec_state, struct hw_context *hw_context)
 			else
 				next_slice_param = next_slice_group_param;
 			/* Hardware job begin here */
-
-
+			dummy_decoder_h264_output(ctx, rk_dummy_ctx, pic_param, 
+				slice_param, slice_data, next_slice_param);
 			/* Hardware job end here */
 			slice_param++;
 		}
@@ -153,6 +239,8 @@ decoder_dummy_create_context()
 		return NULL;
 
 	dummy_ctx->base.run = rk_decoder_dummy_decode_picture;
+	dummy_ctx->base.sync = rk_decoder_dummy_sync;
+	dummy_ctx->base.get_status = rk_decoder_dummy_status;
 
 	return (struct hw_context *) dummy_ctx;
 }
