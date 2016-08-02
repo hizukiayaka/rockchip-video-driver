@@ -62,6 +62,8 @@ uint32_t square_index, uint32_t square_size)
 
 	x = (rx + 1) / 2 * (rect->width - 2 * square_size) + square_size;
 	y = (ry + 1) / 2 * (rect->height - 2 * square_size) + square_size;
+	x %= rect->width;
+	y %= rect->height;
 
 	for(int i = MIN(square_size, rect->width) - 1; i >= 0; i--)
 		for(int j = MIN(square_size, rect->height) - 1; j >= 0; --j)
