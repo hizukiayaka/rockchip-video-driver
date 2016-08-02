@@ -35,11 +35,12 @@
 #include "object_heap.h"
 #include "rockchip_buffer.h"
 #include "rockchip_codec_info.h"
+#include "rockchip_fourcc.h"
 
 #define ROCKCHIP_MAX_PROFILES			18
 #define ROCKCHIP_MAX_ENTRYPOINTS		2
 #define ROCKCHIP_MAX_CONFIG_ATTRIBUTES		10
-#define ROCKCHIP_MAX_IMAGE_FORMATS		1
+#define ROCKCHIP_MAX_IMAGE_FORMATS		2
 #define ROCKCHIP_MAX_SUBPIC_FORMATS		1
 #define ROCKCHIP_MAX_DISPLAY_ATTRIBUTES		4
 #define ROCKCHIP_STR_VENDOR			"Rockchip Driver 1.1"
