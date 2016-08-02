@@ -62,9 +62,9 @@ struct hw_context {
 			union codec_state * codec_state,
 			struct hw_context * hw_context);
 	void (*destroy) (void *);
-	 VAStatus(*get_status) (VADriverContextP ctx,
-				struct hw_context * hw_context,
-				void *buffer);
+	VASurfaceStatus (*get_status) 
+		(VADriverContextP ctx, VASurfaceID surface_id);
+	bool (*sync) (VADriverContextP ctx, VASurfaceID render_target);
 };
 
 struct hw_codec_info {
@@ -78,7 +78,6 @@ struct hw_codec_info {
 	bool (*render_init) (VADriverContextP);
 	void (*preinit_hw_codec) (VADriverContextP,
 				  struct hw_codec_info *);
-
 	/**
 	* Allows HW info to support per-codec max resolution.  If this functor is
 	* not initialized, then @max_width and @max_height will be used as the
