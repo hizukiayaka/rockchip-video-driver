@@ -31,13 +31,9 @@
 #include "rockchip_driver.h"
 #include "rockchip_device_info.h"
 #include "rockchip_backend.h"
+#include "rockchip_image.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
 #include <stdarg.h>
-#include <assert.h>
 
 #define CONFIG_ID_OFFSET		0x01000000
 #define CONTEXT_ID_OFFSET		0x02000000
@@ -47,12 +43,10 @@
 #define SUBPIC_ID_OFFSET                0x10000000
 
 enum {
+    ROCKCHIP_SURFACETYPE_RGBA = 1,
     ROCKCHIP_SURFACETYPE_YUV,
     ROCKCHIP_SURFACETYPE_INDEXED,
 };
-
-static VAStatus 
-rockchip_DestroyImage(VADriverContextP ctx, VAImageID image);
 
 static VAStatus 
 rockchip_MapBuffer(VADriverContextP ctx, VABufferID buf_id, void **pbuf); 
@@ -69,6 +63,9 @@ static VAStatus rockchip_DestroyBuffer(
 VADriverContextP ctx,
 VABufferID buffer_id);
 
+static VAStatus 
+rockchip_DestroyImage(VADriverContextP ctx, VAImageID image);
+
 /* List of supported image formats */
 typedef struct {
     unsigned int        type;
@@ -76,11 +73,12 @@ typedef struct {
 } rockchip_image_format_map_t;
 
 static const rockchip_image_format_map_t
-rockchip_image_formats_map[] = {
+rockchip_image_formats_map[ROCKCHIP_MAX_IMAGE_FORMATS + 1] = {
+	{ ROCKCHIP_SURFACETYPE_YUV,
+	 { VA_FOURCC_I420, VA_LSB_FIRST, 12, } },
 	{ ROCKCHIP_SURFACETYPE_YUV,
 	 { VA_FOURCC_YV12, VA_LSB_FIRST, 12, } },
 	{},
-
 };
 
 static void rockchip_error_message(const char *msg, ...)
@@ -483,6 +481,14 @@ static VAStatus rockchip_CreateSurfaces(
             break;
         }
         obj_surface->surface_id = surfaceID;
+	obj_surface->buffer = NULL;
+	obj_surface->num_buffers = 0;
+	obj_surface->fourcc = 0;
+	obj_surface->orig_width = width;
+	obj_surface->orig_height = height;
+	pthread_mutex_init(&obj_surface->locker, NULL);
+	pthread_cond_init(&obj_surface->wait_list, NULL);
+
         surfaces[i] = surfaceID;
     }
 
@@ -515,6 +521,13 @@ static VAStatus rockchip_DestroySurfaces(
     {
         object_surface_p obj_surface = SURFACE(surface_list[i]);
         ASSERT(obj_surface);
+
+	if (NULL != obj_surface->buffer)
+		free(obj_surface->buffer);
+	pthread_mutex_destroy(&obj_surface->locker);
+	pthread_cond_destroy(&obj_surface->wait_list);
+	obj_surface->num_buffers = 0;
+
         object_heap_free( &rk_data->surface_heap, (object_base_p) obj_surface);
     }
     return VA_STATUS_SUCCESS;
@@ -526,17 +539,16 @@ static VAStatus rockchip_QueryImageFormats(
 	int *num_formats           /* out */
 )
 {
-    int n = 0;
+    uint32_t n = 0;
+    for (n = 0; rockchip_image_formats_map[n].va_format.fourcc != 0; n++)
+    {
+       const rockchip_image_format_map_t * const m = &rockchip_image_formats_map[n];
+       if (format_list)
+          format_list[n] = m->va_format;
+    }
 
-	for (n = 0; rockchip_image_formats_map[n].va_format.fourcc != 0; n++)
-	{
-	    const rockchip_image_format_map_t * const m = &rockchip_image_formats_map[n];
-		if (format_list)
-		    format_list[n] = m->va_format;
-	}
-
-	if (num_formats)
-	    *num_formats = n;
+    if (num_formats)
+        *num_formats = n;
 
     return VA_STATUS_SUCCESS;
 }
@@ -549,11 +561,11 @@ static VAStatus rockchip_CreateImage(
 	VAImage *out_image     /* out */
 )
 {
-    INIT_DRIVER_DATA
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
 	struct object_image *obj_image;
 	VAStatus va_status = VA_STATUS_ERROR_OPERATION_FAILED;
 	VAImageID image_id;
-	unsigned int size2, size;
+	uint32_t size2, size, awidth, aheight;
 
 	out_image->image_id = VA_INVALID_ID;
 	out_image->buf      = VA_INVALID_ID;
@@ -566,22 +578,36 @@ static VAStatus rockchip_CreateImage(
 	if (!obj_image)
 		return VA_STATUS_ERROR_ALLOCATION_FAILED;
 	obj_image->palette    = NULL;
+	obj_image->derived_surface = VA_INVALID_ID;
 
 	VAImage * const image = &obj_image->image;
 	image->image_id       = image_id;
 	image->buf            = VA_INVALID_ID;
 
-	size = width * height;
-	size2 = (width / 2) * (height / 2);
+	/* Align */
+	if ((format->fourcc == VA_FOURCC_YV12) ||
+		(format->fourcc == VA_FOURCC_I420)) 
+	{
+		awidth = ALIGN(width, 128);
+	}
+	aheight = height;
+
+	size = awidth * aheight;
+	size2 = (awidth / 2) * (aheight / 2);
+
+	image->num_palette_entries = 0;
+	image->entry_bytes         = 0;
+	memset(image->component_order, 0, sizeof(image->component_order));
 
 	switch (format->fourcc) {
 	case VA_FOURCC_YV12:
+	case VA_FOURCC_I420:
 		image->num_planes = 3;
-		image->pitches[0] = width;
+		image->pitches[0] = awidth;
 		image->offsets[0] = 0;
-		image->pitches[1] = width / 2;
+		image->pitches[1] = awidth / 2;
 		image->offsets[1] = size;
-		image->pitches[2] = width / 2;
+		image->pitches[2] = awidth / 2;
 		image->offsets[2] = size + size2;
 		image->data_size  = size + 2 * size2;
 		break;
@@ -593,11 +619,18 @@ static VAStatus rockchip_CreateImage(
 	va_status = rockchip_CreateBuffer(ctx, 0, VAImageBufferType,
 				image->data_size, 1, NULL, &image->buf);
 	if (va_status != VA_STATUS_SUCCESS)
-			goto error;
+	    goto error;
 
 	struct object_buffer *obj_buffer = BUFFER(image->buf);
-	if (!obj_buffer)
+	if (!obj_buffer || !obj_buffer->buffer_store)
 		return VA_STATUS_ERROR_ALLOCATION_FAILED;
+
+	if (image->num_palette_entries > 0 && image->entry_bytes > 0) {
+		obj_image->palette = malloc(image->num_palette_entries 
+				* sizeof(*obj_image->palette));
+		if (!obj_image->palette)
+			goto error;
+	}
 
 	image->image_id             = image_id;
 	image->format               = *format;
@@ -658,46 +691,47 @@ static VAStatus rockchip_SetImagePalette(
     return VA_STATUS_SUCCESS;
 }
 
-#define SQUARE_SIZE 5
 static VAStatus
-get_image_i420(struct object_image *obj_image, uint8_t *image_data,
-               struct object_surface *obj_surface,
-               const VARectangle *rect)
+rockchip_sw_getimage(VADriverContextP ctx, struct object_surface *obj_surface,
+struct object_image *obj_image, const VARectangle *rect)
 {
-	uint8_t *dst[3];
-	/* Always YVU 4:2:0 */
-	const int Y = 0;
-	const int V = 1;
-	const int U = 2;
-	int x, y;
-	double rx, ry;
-	static int t = 0;
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	struct object_context *obj_context;
+	VAStatus va_status;
+	void *image_data = NULL;
 
-	VAStatus va_status = VA_STATUS_SUCCESS;
+	if (obj_surface->fourcc != obj_image->image.format.fourcc)
+		return VA_STATUS_ERROR_INVALID_IMAGE_FORMAT;
 
-	/* Dest VA image has either I420 or YV12 format. */
-	dst[Y] = image_data + obj_image->image.offsets[Y];
-	dst[U] = image_data + obj_image->image.offsets[U];
-	dst[V] = image_data + obj_image->image.offsets[V];
+	va_status = rockchip_MapBuffer(ctx, obj_image->image.buf, &image_data);
+	if (va_status != VA_STATUS_SUCCESS) {
+		printf("Memory map error\n");
+		return va_status;
+	}
 
-	memset(dst[Y], 77, rect->width * rect->height);
-	memset(dst[U], 212, (rect->width / 2) * (rect->height / 2));
-	memset(dst[V], 89, (rect->width / 2) * (rect->height / 2));
+	obj_context = CONTEXT(rk_data->current_context_id);
+	ASSERT(obj_context);
 
-	rx = cos(7 * t / 3.14 / 25 * 100 / rect->width);
-	ry = sin(6 * t / 3.14 / 25 * 100 / rect->width);
+	switch (obj_image->image.format.fourcc) {
+	case VA_FOURCC_YV12:
+	case VA_FOURCC_I420:
+		pthread_mutex_lock(&obj_surface->locker);
+		get_image_i420_sw(obj_image, image_data, obj_surface, rect);
+		obj_surface->num_buffers--;
+		pthread_mutex_unlock(&obj_surface->locker);
+		break;
+	default:
+		va_status = VA_STATUS_ERROR_OPERATION_FAILED;
+		break;
+	}
 
-	x = (rx + 1) / 2 * (rect->width - 2 * SQUARE_SIZE) + SQUARE_SIZE;
-	y = (ry + 1) / 2 * (rect->height - 2 * SQUARE_SIZE) + SQUARE_SIZE;
-
-	for(int i = MIN(SQUARE_SIZE, rect->width) - 1; i >= 0; i--)
-		for(int j = MIN(SQUARE_SIZE, rect->height) - 1; j >= 0; --j)
-			dst[Y][x + i + (y + j) * rect->width] = 255;
-
-	t++;
+	va_status = rockchip_UnmapBuffer(ctx, obj_image->image.buf);
 
 	return va_status;
+
+    return VA_STATUS_SUCCESS;
 }
+
 
 static VAStatus rockchip_GetImage(
 	VADriverContextP ctx,
@@ -709,34 +743,50 @@ static VAStatus rockchip_GetImage(
 	VAImageID image
 )
 {
-	INIT_DRIVER_DATA
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
 
 	VARectangle rect;
 	VAStatus va_status;
-	void *image_data = NULL;
 	
+	struct object_context *obj_context = 
+		CONTEXT(rk_data->current_context_id);
 	struct object_surface * const obj_surface = SURFACE(surface);
 	struct object_image * const obj_image = IMAGE(image);
 
 	if (!obj_surface)
-			return VA_STATUS_ERROR_INVALID_SURFACE;
+	    return VA_STATUS_ERROR_INVALID_SURFACE;
 	if (!obj_image)
-			return VA_STATUS_ERROR_INVALID_IMAGE;
+	    return VA_STATUS_ERROR_INVALID_IMAGE;
+	/* don't get anything, keep previous data */
+	if (!obj_surface->buffer)
+	   return VA_STATUS_SUCCESS;
+
+    	if(obj_context->hw_context->get_status) {
+    		if (VASurfaceReady != 
+			obj_context->hw_context->get_status(ctx, surface))
+			return VA_STATUS_ERROR_SURFACE_BUSY;
+	}
+
+
+
+	/* image check */
+	if (x < 0 || y < 0)
+		return VA_STATUS_ERROR_INVALID_PARAMETER;
+	if (x + width > obj_surface->orig_width ||
+		y + height > obj_surface->orig_height)
+		return VA_STATUS_ERROR_INVALID_PARAMETER;
+	if (x + width > obj_image->image.width ||
+		y + height > obj_image->image.height)
+		return VA_STATUS_ERROR_INVALID_PARAMETER;
 
 	rect.x = x;
 	rect.y = y;
 	rect.width = width;
 	rect.height = height;
 
-	va_status = rockchip_MapBuffer(ctx, obj_image->image.buf, &image_data);
-	va_status = get_image_i420(obj_image, image_data,
-           obj_surface, &rect);
-
-	va_status = rockchip_UnmapBuffer(ctx, obj_image->image.buf);
+	va_status = rockchip_sw_getimage(ctx, obj_surface, obj_image, &rect);
 
 	return va_status;
-
-    return VA_STATUS_SUCCESS;
 }
 
 static VAStatus rockchip_PutImage(
@@ -944,6 +994,7 @@ static VAStatus rockchip_CreateContext(
 	    obj_context->hw_context = rk_data->codec_info->dec_hw_context_init(ctx, obj_config);
     }
 
+    rk_data->current_context_id = contextID;
 
     /* Error recovery */
     if (VA_STATUS_SUCCESS != vaStatus)
@@ -1064,13 +1115,20 @@ static VAStatus rockchip_UnmapBuffer(
 	)
 {
     struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+    struct object_buffer *obj_buffer = BUFFER(buf_id);
+    VAStatus vaStatus = VA_STATUS_ERROR_UNKNOWN;
 
-    object_buffer_p obj_buffer = BUFFER(buf_id);
+    if ((buf_id & OBJECT_HEAP_OFFSET_MASK) != BUFFER_ID_OFFSET)
+	    return VA_STATUS_ERROR_INVALID_BUFFER;
+    ASSERT_RET(obj_buffer && obj_buffer->buffer_store, 
+		    VA_STATUS_ERROR_INVALID_BUFFER);
 
     if (NULL != obj_buffer->buffer_store->buffer) {
     	/* Do nothing */
-    	return VA_STATUS_SUCCESS;
+    	vaStatus = VA_STATUS_SUCCESS;
     }
+
+    return vaStatus;
 }
 
 static void 
@@ -1112,7 +1170,8 @@ static VAStatus rockchip_BeginPicture(
     VAStatus vaStatus = VA_STATUS_SUCCESS;
     struct object_context *obj_context;
     struct object_surface *obj_surface;
-	struct object_config *obj_config;
+    struct object_config *obj_config;
+    uint32_t size, size2;
 
     obj_context = CONTEXT(context);
     ASSERT_RET(obj_context, VA_STATUS_ERROR_INVALID_CONTEXT);
@@ -1150,7 +1209,19 @@ static VAStatus rockchip_BeginPicture(
 		obj_context->codec_state.decode.num_slice_params = 0;
 		obj_context->codec_state.decode.num_slice_datas = 0;
 
-		/* You could do more hardware related cleanup here */
+		/* You could do more hardware related cleanup or prepare here */
+
+		/* Allocate buffer for surface */
+		if (0 == obj_surface->fourcc) {
+			obj_surface->fourcc = VA_FOURCC_I420;
+			size = obj_surface->orig_width 
+				* obj_surface->orig_height;
+			size2 = (obj_surface->orig_width / 2) 
+				* (obj_surface->orig_height / 2 );
+			obj_surface->buffer = malloc(size + 2 * size2);
+			ASSERT(obj_surface->buffer);
+		}
+
     }
 
     return vaStatus;
@@ -1237,12 +1308,20 @@ static VAStatus rockchip_SyncSurface(
 		VASurfaceID render_target
 	)
 {
-    INIT_DRIVER_DATA
+    struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
     VAStatus vaStatus = VA_STATUS_SUCCESS;
-    object_surface_p obj_surface;
+    struct object_context *obj_context;
+    struct object_surface *obj_surface;
+
+    obj_context = CONTEXT(rk_data->current_context_id);
+    ASSERT(obj_context);
 
     obj_surface = SURFACE(render_target);
     ASSERT(obj_surface);
+
+    printf("sync surface %d\n", render_target);
+    if (obj_context->hw_context->sync)
+	    obj_context->hw_context->sync(ctx, render_target);
 
     /* TODO */
     return vaStatus;
@@ -1254,15 +1333,23 @@ static VAStatus rockchip_QuerySurfaceStatus(
 		VASurfaceStatus *status	/* out */
 	)
 {
-    INIT_DRIVER_DATA
+    struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
     VAStatus vaStatus = VA_STATUS_SUCCESS;
-    object_surface_p obj_surface;
+    struct object_context *obj_context;
+    struct object_surface *obj_surface;
+
+    obj_context = CONTEXT(rk_data->current_context_id);
+    ASSERT(obj_context);
 
     obj_surface = SURFACE(render_target);
     ASSERT(obj_surface);
 
+    printf("rockchip_QuerySurfaceStatus %d\n", render_target);
     /* TODO */
-    *status = VASurfaceReady;
+    if (obj_context->hw_context->get_status)
+    	*status = obj_context->hw_context->get_status(ctx, render_target);
+    else
+	printf("no hardware status could check %d\n", render_target);
 
     return vaStatus;
 }
