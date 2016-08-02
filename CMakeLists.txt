@@ -4,6 +4,7 @@ find_package(PkgConfig)
 PROJECT(rockchip_drv_video C)
 INCLUDE(GNUInstallDirs)
 
+pkg_search_module(PTHREAD pthread)
 # check the libva
 pkg_search_module(LIBVA libva)
 if(LIBVA_FOUND)
@@ -42,12 +43,13 @@ CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake"
 ADD_LIBRARY(rockchip_drv_video SHARED 
 object_heap.c 
 rockchip_decoder_dummy.c rockchip_device_info.c rockchip_backend.c 
-rockchip_memory.c rockchip_drv_video.c
+rockchip_memory.c rockchip_image.c
+rockchip_drv_video.c
 )
 
-TARGET_LINK_LIBRARIES(rockchip_drv_video ${LIBVA_LIBRARIES} m)
-TARGET_INCLUDE_DIRECTORIES(rockchip_drv_video PUBLIC ${LIBVA_INCLUDE_DIRS})
-TARGET_COMPILE_OPTIONS(rockchip_drv_video PUBLIC ${LIBVA_CFLAGS})
+TARGET_LINK_LIBRARIES(rockchip_drv_video ${LIBVA_LIBRARIES} ${PTHREAD_LIBRARIES} m)
+TARGET_INCLUDE_DIRECTORIES(rockchip_drv_video PUBLIC ${LIBVA_INCLUDE_DIRS} ${PTHREAD_INCLUDE_DIRS})
+TARGET_COMPILE_OPTIONS(rockchip_drv_video PUBLIC ${LIBVA_CFLAGS} ${PTHREAD_CFLAGS})
 SET_TARGET_PROPERTIES(rockchip_drv_video PROPERTIES PREFIX "")
 
 INSTALL(TARGETS rockchip_drv_video LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}/dri")
