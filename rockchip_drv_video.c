@@ -118,7 +118,7 @@ static VAStatus rockchip_QueryConfigProfiles(
 
     if (HAS_H264_DECODING(rk_data) ||
         HAS_H264_ENCODING(rk_data)) {
-        profile_list[i++] = VAProfileH264ConstrainedBaseline;
+        profile_list[i++] = VAProfileH264Baseline;
         profile_list[i++] = VAProfileH264Main;
         profile_list[i++] = VAProfileH264High;
     }
