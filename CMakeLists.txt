@@ -45,7 +45,7 @@ ADD_LIBRARY(rockchip_drv_video SHARED
 "${BUILD_IN_BACKEND}" 
 object_heap.c 
 rockchip_device_info.c rockchip_backend.c 
-rockchip_memory.c rockchip_image.c
+rockchip_debug.c rockchip_memory.c rockchip_image.c
 rockchip_drv_video.c
 )
 

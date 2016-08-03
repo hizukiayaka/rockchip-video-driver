@@ -32,6 +32,7 @@
 #include "rockchip_device_info.h"
 #include "rockchip_backend.h"
 #include "rockchip_image.h"
+#include "rockchip_debug.h"
 
 #include <stdarg.h>
 
@@ -80,26 +81,6 @@ rockchip_image_formats_map[ROCKCHIP_MAX_IMAGE_FORMATS + 1] = {
 	 { VA_FOURCC_YV12, VA_LSB_FIRST, 12, } },
 	{},
 };
-
-static void rockchip_error_message(const char *msg, ...)
-{
-    va_list args;
-
-    fprintf(stderr, "rockchip_drv_video error: ");
-    va_start(args, msg);
-    vfprintf(stderr, msg, args);
-    va_end(args);
-}
-
-static void rockchip_information_message(const char *msg, ...)
-{
-    va_list args;
-
-    fprintf(stderr, "rockchip_drv_video: ");
-    va_start(args, msg);
-    vfprintf(stderr, msg, args);
-    va_end(args);
-}
 
 static VAStatus rockchip_QueryConfigProfiles(
 		VADriverContextP ctx,
@@ -713,7 +694,7 @@ struct object_image *obj_image, const VARectangle *rect)
 
 	va_status = rockchip_MapBuffer(ctx, obj_image->image.buf, &image_data);
 	if (va_status != VA_STATUS_SUCCESS) {
-		printf("Memory map error\n");
+		rk_info_msg("Memory map error\n");
 		return va_status;
 	}
 
@@ -1327,7 +1308,7 @@ static VAStatus rockchip_SyncSurface(
     obj_surface = SURFACE(render_target);
     ASSERT(obj_surface);
 
-    printf("sync surface %d\n", render_target);
+    rk_info_msg("sync surface %d\n", render_target);
     if (obj_context->hw_context->sync)
 	    obj_context->hw_context->sync(ctx, render_target);
 
@@ -1352,12 +1333,12 @@ static VAStatus rockchip_QuerySurfaceStatus(
     obj_surface = SURFACE(render_target);
     ASSERT(obj_surface);
 
-    printf("rockchip_QuerySurfaceStatus %d\n", render_target);
+    rk_info_msg("rockchip_QuerySurfaceStatus %d\n", render_target);
     /* TODO */
     if (obj_context->hw_context->get_status)
     	*status = obj_context->hw_context->get_status(ctx, render_target);
     else
-	printf("no hardware status could check %d\n", render_target);
+	rk_info_msg("no hardware status could check %d\n", render_target);
 
     return vaStatus;
 }
@@ -1482,7 +1463,8 @@ static VAStatus rockchip_Terminate( VADriverContextP ctx )
     obj_buffer = (object_buffer_p) object_heap_first(&rk_data->buffer_heap, &iter);
     while (obj_buffer)
     {
-        rockchip_information_message("vaTerminate: bufferID %08x still allocated, destroying\n", obj_buffer->base.id);
+        rk_info_msg("vaTerminate: bufferID %08x still allocated, destroying\n", 
+		obj_buffer->base.id);
         rockchip_destroy_buffer(rk_data, obj_buffer);
         obj_buffer = (object_buffer_p) object_heap_next( &rk_data->buffer_heap, &iter);
     }
