@@ -43,7 +43,7 @@ CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake"
 ADD_LIBRARY(rockchip_drv_video SHARED 
 object_heap.c 
 rockchip_decoder_dummy.c rockchip_device_info.c rockchip_backend.c 
-rockchip_memory.c rockchip_image.c
+rockchip_debug.c rockchip_memory.c rockchip_image.c
 rockchip_drv_video.c
 )
 
