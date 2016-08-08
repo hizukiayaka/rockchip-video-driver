@@ -33,4 +33,7 @@
 #cmakedefine DECODER_BACKEND_DUMMY
 #cmakedefine ENCODER_BACKEND_DUMMY
 
+#cmakedefine DECODER_BACKEND_MPP
+#cmakedefine ENCODER_BACKEND_MPP
+
 #endif

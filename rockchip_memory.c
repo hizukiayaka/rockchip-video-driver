@@ -140,3 +140,54 @@ void *data, VABufferID * buf_id)
 
 	return vaStatus;
 }
+
+VAStatus 
+rockchip_allocate_refernce(VADriverContextP ctx, VABufferType type,  
+VABufferID *buf_id, void *data, unsigned int size)
+{
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	VAStatus vaStatus = VA_STATUS_ERROR_UNKNOWN;
+	struct object_buffer *obj_buffer;
+	struct buffer_store *buffer_store = NULL;
+	int bufferID;
+
+	/* Validate type */
+	switch (type) {
+	/* Raw Image */
+	case VAImageBufferType:
+		break;
+	default:
+		return VA_STATUS_ERROR_UNSUPPORTED_BUFFERTYPE;
+	}
+
+	bufferID = object_heap_allocate(&rk_data->buffer_heap);
+	obj_buffer = BUFFER(bufferID);
+	if (NULL == obj_buffer) {
+		return VA_STATUS_ERROR_ALLOCATION_FAILED;
+	}
+
+	obj_buffer->max_num_elements = 1;
+	obj_buffer->num_elements = 1;
+	obj_buffer->size_element = size;
+	obj_buffer->type = type;
+	obj_buffer->buffer_store = NULL;
+
+	buffer_store = calloc(1, sizeof(struct buffer_store));
+	assert(buffer_store);
+	buffer_store->ref_count = 1;
+
+	if (data)
+		buffer_store->buffer = data;
+	else
+		buffer_store->buffer = NULL;
+
+	buffer_store->num_elements = obj_buffer->num_elements;
+	rockchip_reference_buffer_store(&obj_buffer->buffer_store,
+					buffer_store);
+	rockchip_release_buffer_store(&buffer_store);
+	*buf_id = bufferID;
+	/* FIXME the status should be update somewhere */
+	vaStatus = VA_STATUS_SUCCESS;
+
+	return vaStatus;
+}

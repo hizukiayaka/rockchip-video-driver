@@ -24,25 +24,23 @@
  *
  */
 
-#ifndef _ROCKCHIP_MEMORY_H_
-#define _ROCKCHIP_MEMORY_H_
-#include "common.h"
+#ifndef _ROCKCHIP_DECODER_MPP_H_
+#define _ROCKCHIP_DECODER_MPP_H_
 #include "rockchip_driver.h"
+#include "rockchip_backend.h"
+#include <mpp/rk_mpi.h>
+
+struct rk_dec_mpp_context {
+	struct hw_context base;
+	MppCtx mctx;
+	MppApi *mpi;
+};
+
+struct hw_context *decoder_mpp_create_context();
+
+bool rk_mpp_init
+(struct hw_context *hw_context, struct object_config *obj_config);
 
 void
-rockchip_reference_buffer_store(struct buffer_store **ptr, 
-struct buffer_store *buffer_store);
-
-void rockchip_release_buffer_store(struct buffer_store **ptr);
-
-VAStatus 
-rockchip_allocate_buffer
-(VADriverContextP ctx, VAContextID context,  VABufferType type, 
-unsigned int size, unsigned int num_elements, 
-void *data, VABufferID * buf_id);
-
-VAStatus 
-rockchip_allocate_refernce(VADriverContextP ctx, VABufferType type,  
-VABufferID *buf_id, void *data, unsigned int size);
-
+rk_mpp_release_frame(void **data);
 #endif

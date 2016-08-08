@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include "rockchip_backend.h"
 #include "rockchip_decoder_dummy.h"
+#include "rockchip_decoder_mpp.h"
 
 struct hw_context *rk3288_dec_hw_context_init
     (VADriverContextP ctx, struct object_config *obj_config) 
@@ -37,6 +38,16 @@ struct hw_context *rk3288_dec_hw_context_init
 #ifdef DECODER_BACKEND_DUMMY
 	hw_ctx = decoder_dummy_create_context();
 #endif
+
+#ifdef DECODER_BACKEND_MPP
+	hw_ctx = decoder_mpp_create_context();
+	if (!rk_mpp_init(hw_ctx, obj_config))
+	{
+		free(hw_ctx);
+		hw_ctx = NULL;
+	}
+#endif
+
 	return hw_ctx;
 
 }
@@ -90,6 +101,8 @@ DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(iq_matrix, iq_matrix)
 DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(bit_plane, bit_plane)
 DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(huffman_table, huffman_table)
 DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(probability_data, probability_data)
+/* only used by mpp backend now */
+DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(image_data, image_data)
 
 #define DEF_RENDER_DECODE_MULTI_BUFFER_FUNC(name, member) DEF_RENDER_MULTI_BUFFER_FUNC(decode, name, member)
 DEF_RENDER_DECODE_MULTI_BUFFER_FUNC(slice_parameter, slice_params)
@@ -133,7 +146,10 @@ VABufferID * buffers, int num_buffers)
 			vaStatus =
 			    ROCKCHIP_RENDER_DECODE_BUFFER(slice_data);
 			break;
-
+		case VAImageBufferType:
+			vaStatus = 
+			    ROCKCHIP_RENDER_DECODE_BUFFER(image_data);
+			break;
 		default:
 			vaStatus = VA_STATUS_ERROR_UNSUPPORTED_BUFFERTYPE;
 			break;

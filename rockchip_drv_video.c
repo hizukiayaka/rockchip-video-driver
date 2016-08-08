@@ -688,6 +688,9 @@ struct object_image *obj_image, const VARectangle *rect)
 	struct object_context *obj_context;
 	VAStatus va_status;
 	void *image_data = NULL;
+#ifdef DECODER_BACKEND_MPP
+	void *frame_data;
+#endif
 
 	if (obj_surface->fourcc != obj_image->image.format.fourcc)
 		return VA_STATUS_ERROR_INVALID_IMAGE_FORMAT;
@@ -709,6 +712,9 @@ struct object_image *obj_image, const VARectangle *rect)
 		get_image_i420_sw(obj_image, image_data, obj_surface, rect);
 		obj_surface->num_buffers--;
 		pthread_mutex_unlock(&obj_surface->locker);
+#endif
+#ifdef DECODER_BACKEND_MPP
+		get_image_i420_sw(obj_image, image_data, obj_surface, rect);
 #endif
 		break;
 	default:
@@ -752,10 +758,11 @@ static VAStatus rockchip_GetImage(
 	if (!obj_surface->buffer)
 	   return VA_STATUS_SUCCESS;
 
-    if(obj_context->hw_context->get_status) {
-        if (VASurfaceReady != obj_context->hw_context->get_status(ctx, surface))
+	if(obj_context->hw_context->get_status) {
+        	if (VASurfaceReady != obj_context->hw_context->get_status
+				(ctx, surface))
 			return VA_STATUS_ERROR_SURFACE_BUSY;
-    }
+	}
 
 	/* image check */
 	if (x < 0 || y < 0)
@@ -1185,8 +1192,7 @@ static VAStatus rockchip_BeginPicture(
 		rockchip_release_buffer_store
 				(&obj_context->codec_state.decode.huffman_table);
 
-		for (int32_t i = 0; 
-					i < obj_context->codec_state.decode.num_slice_params; i++) 
+		for (int32_t i = 0; i < obj_context->codec_state.decode.num_slice_params; i++) 
 		{
 			rockchip_release_buffer_store
 					(&obj_context->codec_state.decode.slice_params[i]);
@@ -1196,6 +1202,13 @@ static VAStatus rockchip_BeginPicture(
 
 		obj_context->codec_state.decode.num_slice_params = 0;
 		obj_context->codec_state.decode.num_slice_datas = 0;
+
+#ifdef DECODER_BACKEND_MPP
+		rk_mpp_release_frame
+			(&obj_context->codec_state.decode.image_data->buffer);
+		rockchip_release_buffer_store
+			(&obj_context->codec_state.decode.image_data);
+#endif
 
 		/* You could do more hardware related cleanup or prepare here */
 #ifdef DECODER_BACKEND_DUMMY

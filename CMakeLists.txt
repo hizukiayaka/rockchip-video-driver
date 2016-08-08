@@ -28,6 +28,12 @@ set(ENCODER_BACKEND_DUMMY 1)
 set(BUILD_IN_BACKEND "rockchip_decoder_dummy.c")
 endif(${CODEC_BACKEND} MATCHES "dummy")
 
+if(${CODEC_BACKEND} MATCHES "mpp")
+set(DECODER_BACKEND_MPP 1)
+set(ENCODER_BACKEND_MPP 1)
+set(BUILD_IN_BACKEND "rockchip_decoder_mpp.c")
+endif(${CODEC_BACKEND} MATCHES "mpp")
+
 # Check the VA-API support format
 if(${VA_MINOR_VERSION} GREATER 36) 
 set(VAAPI_SUPPORT_HEVC 1)

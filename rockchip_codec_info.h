@@ -67,6 +67,8 @@ struct decode_state {
 	VASurfaceID current_render_target;
 	struct object_surface *render_object;
 	struct object_surface *reference_objects[16];	/* Up to 2 reference surfaces are valid for MPEG-2, */
+
+	struct buffer_store *image_data;
 };
 
 union codec_state {
