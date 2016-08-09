@@ -79,6 +79,8 @@ rockchip_image_formats_map[ROCKCHIP_MAX_IMAGE_FORMATS + 1] = {
 	 { VA_FOURCC_I420, VA_LSB_FIRST, 12, } },
 	{ ROCKCHIP_SURFACETYPE_YUV,
 	 { VA_FOURCC_YV12, VA_LSB_FIRST, 12, } },
+	{ ROCKCHIP_SURFACETYPE_YUV,
+	 { VA_FOURCC_NV12, VA_LSB_FIRST, 12, } },
 	{},
 };
 
@@ -584,8 +586,8 @@ static VAStatus rockchip_CreateImage(
 	size = awidth * aheight;
 	size2 = (awidth / 2) * (aheight / 2);
 
+	image->entry_bytes = 0;
 	image->num_palette_entries = 0;
-	image->entry_bytes         = 0;
 	memset(image->component_order, 0, sizeof(image->component_order));
 
 	switch (format->fourcc) {
@@ -600,6 +602,15 @@ static VAStatus rockchip_CreateImage(
 		image->offsets[2] = size + size2;
 		image->data_size  = size + 2 * size2;
 		break;
+	case VA_FOURCC_NV12:
+		image->num_planes = 2;
+		image->pitches[0] = awidth;
+		image->offsets[0] = 0;
+		image->pitches[1] = awidth;
+		image->offsets[1] = size;
+		image->data_size  = size + 2 * size2;
+		break;
+
 	default:
 		goto error;
 
