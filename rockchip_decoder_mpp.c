@@ -112,9 +112,9 @@ rk_dec_mpp_output_loop
 }
 
 static VAStatus
-rk_dec_mpp_decode_picture
-(VADriverContextP ctx, VAProfile profile, 
-union codec_state *codec_state, struct hw_context *hw_context)
+rk_dec_mpp_avc_decode_picture
+(VADriverContextP ctx,  union codec_state *codec_state, 
+ struct hw_context *hw_context)
 {
 	struct rockchip_driver_data *rk_data = 
 		rockchip_driver_data(ctx);
@@ -188,6 +188,26 @@ union codec_state *codec_state, struct hw_context *hw_context)
 	rk_dec_mpp_output_loop(ctx, rk_mpp_data);
 
 	return VA_STATUS_SUCCESS;
+}
+
+static VAStatus
+rk_dec_mpp_decode_picture
+(VADriverContextP ctx, VAProfile profile, 
+union codec_state *codec_state, struct hw_context *hw_context)
+{
+	switch(profile) {
+	case VAProfileH264Baseline:
+	case VAProfileH264Main:
+	case VAProfileH264High:
+		return rk_dec_mpp_avc_decode_picture
+			(ctx, codec_state, hw_context);
+		break;
+	default:
+		/* Unsupport profile */
+		ASSERT(0);
+		return VA_STATUS_ERROR_UNSUPPORTED_PROFILE;
+		break;
+	};
 }
 
 bool 
