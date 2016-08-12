@@ -27,8 +27,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "rockchip_backend.h"
+#ifdef DECODER_BACKEND_DUMMY
 #include "rockchip_decoder_dummy.h"
+#endif
+#ifdef DECODER_BACKEND_MPP
 #include "rockchip_decoder_mpp.h"
+#endif
 
 struct hw_context *rk3288_dec_hw_context_init
     (VADriverContextP ctx, struct object_config *obj_config) 
