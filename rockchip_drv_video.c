@@ -652,7 +652,7 @@ static VAStatus rockchip_DeriveImage(
 )
 {
     /* TODO */
-    return VA_STATUS_SUCCESS;
+    return VA_STATUS_ERROR_OPERATION_FAILED;
 }
 
 static VAStatus rockchip_DestroyImage(
