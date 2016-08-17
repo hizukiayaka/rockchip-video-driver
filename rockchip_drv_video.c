@@ -76,11 +76,11 @@ typedef struct {
 static const rockchip_image_format_map_t
 rockchip_image_formats_map[ROCKCHIP_MAX_IMAGE_FORMATS + 1] = {
 	{ ROCKCHIP_SURFACETYPE_YUV,
+	 { VA_FOURCC_NV12, VA_LSB_FIRST, 12, } },
+	{ ROCKCHIP_SURFACETYPE_YUV,
 	 { VA_FOURCC_I420, VA_LSB_FIRST, 12, } },
 	{ ROCKCHIP_SURFACETYPE_YUV,
 	 { VA_FOURCC_YV12, VA_LSB_FIRST, 12, } },
-	{ ROCKCHIP_SURFACETYPE_YUV,
-	 { VA_FOURCC_NV12, VA_LSB_FIRST, 12, } },
 	{},
 };
 
@@ -465,11 +465,14 @@ static VAStatus rockchip_CreateSurfaces(
         }
         obj_surface->surface_id = surfaceID;
 	obj_surface->buffer = NULL;
-	obj_surface->fourcc = 0;
+	/* FIXME set the surface format by hardware info */
+	obj_surface->fourcc = VA_FOURCC_NV12;
+
 	obj_surface->orig_width = width;
 	obj_surface->orig_height = height;
 	obj_surface->width = ALIGN(width, rk_data->codec_info->min_linear_wpitch);
 	obj_surface->height = ALIGN(height, rk_data->codec_info->min_linear_hpitch);
+
 #ifdef	DECODER_BACKEND_DUMMY
 	obj_surface->num_buffers = 0;
 	pthread_mutex_init(&obj_surface->locker, NULL);
@@ -511,7 +514,9 @@ static VAStatus rockchip_DestroySurfaces(
         ASSERT_RET(obj_surface, VA_STATUS_ERROR_INVALID_SURFACE);
 
 	if (NULL != obj_surface->buffer) {
+#ifdef DECODER_BACKEND_MPP
 		free(obj_surface->buffer);
+#endif
 		obj_surface->buffer = NULL;
 	}
 
@@ -535,7 +540,8 @@ static VAStatus rockchip_QueryImageFormats(
     uint32_t n = 0;
     for (n = 0; rockchip_image_formats_map[n].va_format.fourcc != 0; n++)
     {
-       const rockchip_image_format_map_t * const m = &rockchip_image_formats_map[n];
+       const rockchip_image_format_map_t * const m = 
+	       &rockchip_image_formats_map[n];
        if (format_list)
           format_list[n] = m->va_format;
     }
@@ -656,6 +662,9 @@ static VAStatus rockchip_DeriveImage(
 )
 {
     /* TODO */
+    image->image_id == VA_INVALID_ID;
+    image->buf == VA_INVALID_ID;
+
     return VA_STATUS_ERROR_OPERATION_FAILED;
 }
 
@@ -706,9 +715,12 @@ struct object_image *obj_image, const VARectangle *rect)
 #ifdef DECODER_BACKEND_MPP
 	void *frame_data;
 #endif
-
 	if (obj_surface->fourcc != obj_image->image.format.fourcc)
+#if 1
 		return VA_STATUS_ERROR_INVALID_IMAGE_FORMAT;
+#else
+		obj_image->image.format.fourcc = obj_surface->fourcc;
+#endif
 
 	va_status = rockchip_MapBuffer(ctx, obj_image->image.buf, &image_data);
 	if (va_status != VA_STATUS_SUCCESS) {
@@ -732,6 +744,11 @@ struct object_image *obj_image, const VARectangle *rect)
 		get_image_i420_sw(obj_image, image_data, obj_surface, rect);
 #endif
 		break;
+#ifdef DECODER_BACKEND_LIBVPU
+	case VA_FOURCC_NV12:
+		get_image_nv12_sw(obj_image, image_data, obj_surface, rect);
+		break;
+#endif
 	default:
 		va_status = VA_STATUS_ERROR_OPERATION_FAILED;
 		break;
@@ -969,7 +986,8 @@ static VAStatus rockchip_CreateContext(
     obj_context->picture_width = picture_width;
     obj_context->picture_height = picture_height;
     obj_context->num_render_targets = num_render_targets;
-    obj_context->render_targets = (VASurfaceID *) malloc(num_render_targets * sizeof(VASurfaceID));
+    obj_context->render_targets = (VASurfaceID *) calloc(num_render_targets, 
+		    sizeof(VASurfaceID));
     obj_context->hw_context = NULL;
     obj_context->flags = flag;
 
@@ -1150,7 +1168,6 @@ rockchip_destroy_buffer
         rockchip_release_buffer_store(&obj_buffer->buffer_store);
     }
 
-
     object_heap_free( &driver_data->buffer_heap, (object_base_p) obj_buffer);
 }
 
@@ -1192,7 +1209,7 @@ static VAStatus rockchip_BeginPicture(
     obj_config = CONFIG(obj_context->config_id);
 	ASSERT_RET(obj_config, VA_STATUS_ERROR_INVALID_CONFIG);
 
-	/* Decoder */
+    /* Decoder */
     if (VAEntrypointVLD == obj_config->entrypoint) {
 		/* render_target */
 		obj_context->codec_state.decode.current_render_target = obj_surface->base.id;
@@ -1238,6 +1255,9 @@ static VAStatus rockchip_BeginPicture(
 			ASSERT(obj_surface->buffer);
 		}
 #endif
+#ifdef DECODER_BACKEND_LIBVPU
+		obj_surface->buffer = NULL;
+#endif
 
     }
 
@@ -1268,16 +1288,6 @@ static VAStatus rockchip_RenderPicture(
        vaStatus = rockchip_decoder_render_picture(ctx, context, 
 		       buffers, num_buffers);
     }
-    
-#if 0
-    /* Release buffers */
-    for(i = 0; i < num_buffers; i++)
-    {
-        object_buffer_p obj_buffer = BUFFER(buffers[i]);
-        ASSERT(obj_buffer);
-        rockchip_destroy_buffer(driver_data, obj_buffer);
-    }
-#endif
 
     return vaStatus;
 }
@@ -1336,7 +1346,7 @@ static VAStatus rockchip_SyncSurface(
     obj_surface = SURFACE(render_target);
     ASSERT(obj_surface);
 
-    rk_info_msg("sync surface %d\n", render_target);
+    rk_info_msg("rockchip_SyncSurface %d\n", render_target);
     if (obj_context->hw_context->sync)
 	    obj_context->hw_context->sync(ctx, render_target);
 
@@ -1390,6 +1400,73 @@ static VAStatus rockchip_PutSurface(
 {
     /* TODO */
     return VA_STATUS_ERROR_UNKNOWN;
+}
+
+/* Not used by decoder now */
+static VAStatus
+rockchip_QuerySurfaceAttributes(VADriverContextP ctx,
+		VAConfigID config,
+		 VASurfaceAttrib *attrib_list,
+		 unsigned int *num_attribs)
+{
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	int i = 0;
+
+	VAStatus vaStatus = VA_STATUS_SUCCESS;
+	struct object_config *obj_config;
+	VASurfaceAttrib *attribs = NULL;
+
+	if (VA_INVALID_ID == config)
+		return VA_STATUS_ERROR_INVALID_CONFIG;
+	obj_config = CONFIG(config);
+	if (NULL == obj_config)
+		return VA_STATUS_ERROR_INVALID_CONFIG;
+	if (!attrib_list && !num_attribs)
+		return VA_STATUS_ERROR_INVALID_PARAMETER;
+	if (NULL == attrib_list) {
+		*num_attribs = ROCKCHIP_MAX_SURFACE_ATTRIBUTES;
+		return VA_STATUS_SUCCESS;
+	}
+
+	attribs = malloc(ROCKCHIP_MAX_SURFACE_ATTRIBUTES *sizeof(*attribs));
+
+	if (NULL == attribs)
+		return VA_STATUS_ERROR_ALLOCATION_FAILED;
+#ifdef DECODER_BACKEND_DUMMY
+	if (obj_config->entrypoint == VAEntrypointVLD) { /* decode */
+		attribs[i].type = VASurfaceAttribPixelFormat;
+		attribs[i].value.type = VAGenericValueTypeInteger;
+		attribs[i].flags = VA_SURFACE_ATTRIB_GETTABLE | VA_SURFACE_ATTRIB_SETTABLE;
+		attribs[i].value.value.i = VA_FOURCC_I420;
+		i++;
+	}
+#endif
+
+#if 0
+	attribs[i].type = VASurfaceAttribMaxWidth;
+	attribs[i].value.type = VAGenericValueTypeInteger;
+	attribs[i].flags = VA_SURFACE_ATTRIB_GETTABLE;
+	attribs[i].value.value.i = max_width;
+	i++;
+
+	attribs[i].type = VASurfaceAttribMaxHeight;
+	attribs[i].value.type = VAGenericValueTypeInteger;
+	attribs[i].flags = VA_SURFACE_ATTRIB_GETTABLE;
+	attribs[i].value.value.i = max_height;
+	i++;
+#endif
+
+	if (i > *num_attribs) {
+		*num_attribs = i;
+		free(attribs);
+		return VA_STATUS_ERROR_MAX_NUM_EXCEEDED;
+	}
+
+	*num_attribs = i;
+	memcpy(attrib_list, attribs, i * sizeof(*attribs));
+	free(attribs);
+
+	return vaStatus;
 }
 
 /* 
@@ -1675,6 +1752,7 @@ VAStatus VA_DRIVER_INIT_FUNC(  VADriverContextP ctx )
     vtable->vaLockSurface = rockchip_LockSurface;
     vtable->vaUnlockSurface = rockchip_UnlockSurface;
     vtable->vaBufferInfo = rockchip_BufferInfo;
+    vtable->vaQuerySurfaceAttributes = rockchip_QuerySurfaceAttributes;
 
     rk_data = (struct rockchip_driver_data *) malloc(sizeof(*rk_data) );
     if (NULL == rk_data) {
@@ -1696,4 +1774,3 @@ VAStatus VA_DRIVER_INIT_FUNC(  VADriverContextP ctx )
 
     return VA_STATUS_SUCCESS;
 }
-
