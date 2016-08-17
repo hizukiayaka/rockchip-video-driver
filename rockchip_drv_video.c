@@ -468,6 +468,8 @@ static VAStatus rockchip_CreateSurfaces(
 	obj_surface->fourcc = 0;
 	obj_surface->orig_width = width;
 	obj_surface->orig_height = height;
+	obj_surface->width = ALIGN(width, rk_data->codec_info->min_linear_wpitch);
+	obj_surface->height = ALIGN(height, rk_data->codec_info->min_linear_hpitch);
 #ifdef	DECODER_BACKEND_DUMMY
 	obj_surface->num_buffers = 0;
 	pthread_mutex_init(&obj_surface->locker, NULL);
@@ -576,11 +578,13 @@ static VAStatus rockchip_CreateImage(
 	image->buf            = VA_INVALID_ID;
 
 	/* Align */
+	awidth = ALIGN(width, rk_data->codec_info->min_linear_wpitch);
 	if ((format->fourcc == VA_FOURCC_YV12) ||
 		(format->fourcc == VA_FOURCC_I420)) 
 	{
 		awidth = ALIGN(width, 128);
 	}
+	aheight = ALIGN(height, rk_data->codec_info->min_linear_hpitch);
 	aheight = height;
 
 	size = awidth * aheight;
@@ -1226,10 +1230,10 @@ static VAStatus rockchip_BeginPicture(
 		/* Allocate buffer for surface */
 		if (0 == obj_surface->fourcc) {
 			obj_surface->fourcc = VA_FOURCC_I420;
-			size = obj_surface->orig_width 
-				* obj_surface->orig_height;
-			size2 = (obj_surface->orig_width / 2) 
-				* (obj_surface->orig_height / 2 );
+			size = obj_surface->width 
+				* obj_surface->height;
+			size2 = (obj_surface->width / 2) 
+				* (obj_surface->height / 2 );
 			obj_surface->buffer = malloc(size + 2 * size2);
 			ASSERT(obj_surface->buffer);
 		}

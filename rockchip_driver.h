@@ -106,8 +106,11 @@ struct object_context {
 struct object_surface {
 	struct object_base base;
 	VASurfaceID surface_id;
-	int orig_width;
-	int orig_height;
+	int32_t orig_width;
+	int32_t orig_height;
+	/* After align */
+	int32_t width;
+	int32_t height;
 	int fourcc;
 
 	/* 
