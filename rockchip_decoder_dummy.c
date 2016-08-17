@@ -98,8 +98,8 @@ dummy_decoder_h264_output(VADriverContextP ctx,
 		VARectangle rect;
 		uint32_t square_size, index;
 
-		rect.width = obj_surface->orig_width;
-		rect.height = obj_surface->orig_height;
+		rect.width = obj_surface->width;
+		rect.height = obj_surface->height;
 
 		if (slice_param->slice_data_size > rect.width
 		    || slice_param->slice_data_size > rect.height)
