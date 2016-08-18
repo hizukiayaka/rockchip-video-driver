@@ -1,3 +1,17 @@
+libva-rockchip (0.11-2) unstable; urgency=medium
+
+  * mpp: decoder: support multiple format decoder
+  * va: support NV12 image format
+  * backend: only include the header files of enabled backend
+  * va: disable vaDeriveImage()
+  * va: add v4l2 interface
+  * libvpu v4l2 backend
+  * va: apply allign
+  * dummy: apply allign
+  * va: libvpu output buffer support
+
+ -- Randy Li <randy.li@rock-chips.com>  Wed, 17 Aug 2016 06:04:24 +0000
+
 libva-rockchip (0.10-1) unstable; urgency=low
 
   * Initial release

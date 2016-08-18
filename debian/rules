@@ -30,4 +30,13 @@ override_dh_auto_configure:
 	-DPKG_CONFIG_EXECUTABLE=/usr/bin/${DEB_HOST_MULTIARCH}-pkg-config \
 	-DCMAKE_LIBRARY_PATH=${DEB_HOST_MULTIARCH} \
 	-DCMAKE_LIBRARY_ARCHITECTURE=${DEB_HOST_MULTIARCH} \
-	-DCODEC_BACKEND=mpp
+	-DCMAKE_BUILD_TYPE=Debug \
+	-DCODEC_BACKEND=libvpu
+
+override_dh_strip:
+	dh_strip --dbg-package=libva-rockchip1-dbg
+
+override_dh_auto_install:
+	dh_auto_install --destdir=debian/libva-rockchip1
+
+.PHONY: override_dh_strip
