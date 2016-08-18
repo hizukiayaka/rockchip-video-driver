@@ -110,7 +110,11 @@ int rbsp_to_nal(const uint8_t* rbsp_buf, const int* rbsp_size, uint8_t* nal_buf,
  @return                    the length of data actually written
  */
 //7.3.1 NAL unit syntax
-int write_nal_unit(int nal_unit_type, int width, int height, VdpDecoderProfile profile, VdpPictureInfoH264 *vdppi, uint8_t* buf, int size)
+int 
+write_nal_unit
+(int nal_unit_type, int width, int height, VAProfile profile, 
+VAPictureParameterBufferH264 *pic_param, 
+VASliceParameterBufferH264 *slice_param, uint8_t* buf, int size)
 {
     #define HEADER_SIZE 3
     int rbsp_size = size*3/4; // NOTE this may have to be slightly smaller (3/4 smaller, worst case) in order to be guaranteed to fit
@@ -122,11 +126,11 @@ int write_nal_unit(int nal_unit_type, int width, int height, VdpDecoderProfile p
     switch ( nal_unit_type )
     {
         case NAL_UNIT_TYPE_SPS:
-            write_seq_parameter_set_rbsp(width, height, profile, vdppi, b);
+            write_seq_parameter_set_rbsp(width, height, profile, pic_param, b);
             break;
 
         case NAL_UNIT_TYPE_PPS:
-            write_pic_parameter_set_rbsp(vdppi, b);
+            write_pic_parameter_set_rbsp(pic_param, slice_param, b);
             break;
 
         default:
@@ -163,23 +167,24 @@ int write_nal_unit(int nal_unit_type, int width, int height, VdpDecoderProfile p
 
 
 //7.3.2.1 Sequence parameter set RBSP syntax
-void write_seq_parameter_set_rbsp(int width, int height, VdpDecoderProfile profile, VdpPictureInfoH264* sps, bs_t* b)
+void write_seq_parameter_set_rbsp(int width, int height, VAProfile profile, 
+		VAPictureParameterBufferH264 *pic_param, bs_t* b)
 {
     int mb_width = (width + 15) / 16;
     int mb_height = (height + 15) / 16;
 
-    if( !sps->frame_mbs_only_flag )
+    if( !pic_param->seq_fields.bits.frame_mbs_only_flag )
         mb_height = ( mb_height + 1 ) & ~1;
 
     int profile_idc;
     switch (profile) {
-        case VDP_DECODER_PROFILE_H264_BASELINE:
+        case VAProfileH264Baseline:
             profile_idc = H264_PROFILE_BASELINE;
             break;
-        case VDP_DECODER_PROFILE_H264_MAIN:
+        case VAProfileH264Main:
             profile_idc = H264_PROFILE_MAIN;
             break;
-        case VDP_DECODER_PROFILE_H264_HIGH:
+        case VAProfileH264High:
         default:
             profile_idc = H264_PROFILE_HIGH;
             break;
@@ -201,15 +206,17 @@ void write_seq_parameter_set_rbsp(int width, int height, VdpDecoderProfile profi
         bs_write_u1(b, 0);//sps->seq_scaling_matrix_present_flag);
     }
 
-    bs_write_ue(b, sps->log2_max_frame_num_minus4);
-    bs_write_ue(b, sps->pic_order_cnt_type);
-    if( sps->pic_order_cnt_type == 0 )
+    bs_write_ue(b, pic_param->seq_fields.bits.log2_max_frame_num_minus4);
+    bs_write_ue(b, pic_param->seq_fields.bits.pic_order_cnt_type);
+    if( pic_param->seq_fields.bits.pic_order_cnt_type == 0 )
     {
-        bs_write_ue(b, sps->log2_max_pic_order_cnt_lsb_minus4);
+        bs_write_ue(b, 
+		pic_param->seq_fields.bits.log2_max_pic_order_cnt_lsb_minus4);
     }
-    else if( sps->pic_order_cnt_type == 1 )
+    else if( pic_param->seq_fields.bits.pic_order_cnt_type == 1 )
     {
-        bs_write_u1(b, sps->delta_pic_order_always_zero_flag);
+        bs_write_u1(b, 
+		pic_param->seq_fields.bits.delta_pic_order_always_zero_flag);
         bs_write_se(b, 0);//sps->offset_for_non_ref_pic);
         bs_write_se(b, 0);//sps->offset_for_top_to_bottom_field);
         bs_write_ue(b, 0);//sps->num_ref_frames_in_pic_order_cnt_cycle);
@@ -218,19 +225,22 @@ void write_seq_parameter_set_rbsp(int width, int height, VdpDecoderProfile profi
         //    bs_write_se(b, sps->offset_for_ref_frame[ i ]);
         //}
     }
-    bs_write_ue(b, sps->num_ref_frames);
+    bs_write_ue(b, pic_param->num_ref_frames);
     bs_write_u1(b, 0);//sps->gaps_in_frame_num_value_allowed_flag);
     bs_write_ue(b, mb_width-1);//sps->pic_width_in_mbs_minus1);
-    bs_write_ue(b, (mb_height >> !sps->frame_mbs_only_flag) -1);//sps->pic_height_in_map_units_minus1);
-    bs_write_u1(b, sps->frame_mbs_only_flag);
-    if( !sps->frame_mbs_only_flag )
+    bs_write_ue(b, 
+	(mb_height >> !pic_param->seq_fields.bits.frame_mbs_only_flag) -1);//sps->pic_height_in_map_units_minus1);
+    bs_write_u1(b, pic_param->seq_fields.bits.frame_mbs_only_flag);
+    if( !pic_param->seq_fields.bits.frame_mbs_only_flag )
     {
-        bs_write_u1(b, sps->mb_adaptive_frame_field_flag);
+        bs_write_u1(b, 
+		pic_param->seq_fields.bits.mb_adaptive_frame_field_flag);
     }
-    bs_write_u1(b, sps->direct_8x8_inference_flag);
+    bs_write_u1(b, pic_param->seq_fields.bits.direct_8x8_inference_flag);
 
     int crop_width = mb_width*16 - width;
-    int crop_height = (mb_height*16 - height) >> !sps->frame_mbs_only_flag;
+    int crop_height = (mb_height*16 - height) 
+	    >> !pic_param->seq_fields.bits.frame_mbs_only_flag;
     int crop = crop_width || crop_height;
     bs_write_u1(b, crop);//sps->frame_cropping_flag);
     if( crop )
@@ -279,86 +289,39 @@ void write_scaling_list(bs_t* b, uint8_t* scalingList, int sizeOfScalingList, in
 }
 
 //7.3.2.2 Picture parameter set RBSP syntax
-void write_pic_parameter_set_rbsp(VdpPictureInfoH264* pps, bs_t* b)
+void 
+write_pic_parameter_set_rbsp(VAPictureParameterBufferH264 *pic_param, 
+	VASliceParameterBufferH264 *slice_param, bs_t* b)
 {
     bs_write_ue(b, 0);//pps->pic_parameter_set_id);
     bs_write_ue(b, 0);//pps->seq_parameter_set_id);
-    bs_write_u1(b, pps->entropy_coding_mode_flag);
-    bs_write_u1(b, pps->pic_order_present_flag);
+    bs_write_u1(b, pic_param->pic_fields.bits.entropy_coding_mode_flag);
+    bs_write_u1(b, pic_param->pic_fields.bits.pic_order_present_flag);
     bs_write_ue(b, 0);//pps->num_slice_groups_minus1);
 
-    /*if( pps->num_slice_groups_minus1 > 0 )
-    {
-        int i_group;
-        bs_write_ue(b, pps->slice_group_map_type);
-        if( pps->slice_group_map_type == 0 )
-        {
-            for( i_group = 0; i_group <= pps->num_slice_groups_minus1; i_group++ )
-            {
-                bs_write_ue(b, pps->run_length_minus1[ i_group ]);
-            }
-        }
-        else if( pps->slice_group_map_type == 2 )
-        {
-            for( i_group = 0; i_group < pps->num_slice_groups_minus1; i_group++ )
-            {
-                bs_write_ue(b, pps->top_left[ i_group ]);
-                bs_write_ue(b, pps->bottom_right[ i_group ]);
-            }
-        }
-        else if( pps->slice_group_map_type == 3 ||
-                 pps->slice_group_map_type == 4 ||
-                 pps->slice_group_map_type == 5 )
-        {
-            bs_write_u1(b, pps->slice_group_change_direction_flag);
-            bs_write_ue(b, pps->slice_group_change_rate_minus1);
-        }
-        else if( pps->slice_group_map_type == 6 )
-        {
-            bs_write_ue(b, pps->pic_size_in_map_units_minus1);
-            for( i = 0; i <= pps->pic_size_in_map_units_minus1; i++ )
-            {
-                bs_write_u(b, intlog2( pps->num_slice_groups_minus1 + 1 ), pps->slice_group_id[ i ] ); // was u(v)
-            }
-        }
-    }*/
-    bs_write_ue(b, pps->num_ref_idx_l0_active_minus1);
-    bs_write_ue(b, pps->num_ref_idx_l1_active_minus1);
-    bs_write_u1(b, pps->weighted_pred_flag);
-    bs_write_u(b,2, pps->weighted_bipred_idc);
-    bs_write_se(b, pps->pic_init_qp_minus26);
+    /* FIXME */
+    bs_write_ue(b, slice_param->num_ref_idx_l0_active_minus1);
+    bs_write_ue(b, slice_param->num_ref_idx_l1_active_minus1);
+    bs_write_u1(b, pic_param->pic_fields.bits.weighted_pred_flag);
+    bs_write_u(b,2, pic_param->pic_fields.bits.weighted_bipred_idc);
+    bs_write_se(b, pic_param->pic_init_qp_minus26);
+#if 0
     bs_write_se(b, 0);//pps->pic_init_qs_minus26);
-    bs_write_se(b, pps->chroma_qp_index_offset);
-    bs_write_u1(b, pps->deblocking_filter_control_present_flag);
-    bs_write_u1(b, pps->constrained_intra_pred_flag);
-    bs_write_u1(b, pps->redundant_pic_cnt_present_flag);
+#else
+    bs_write_se(b, pic_param->pic_init_qs_minus26);
+#endif
+    bs_write_se(b, pic_param->chroma_qp_index_offset);
+    bs_write_u1(b, pic_param->pic_fields.bits.
+		    deblocking_filter_control_present_flag);
+    bs_write_u1(b, pic_param->pic_fields.bits.constrained_intra_pred_flag);
+    bs_write_u1(b, pic_param->pic_fields.bits.redundant_pic_cnt_present_flag);
 
     if ( 1 )//pps->_more_rbsp_data_present )
     {
-        bs_write_u1(b, pps->transform_8x8_mode_flag);
+        bs_write_u1(b, pic_param->pic_fields.bits.transform_8x8_mode_flag);
         bs_write_u1(b, 0);//pps->pic_scaling_matrix_present_flag);
-        /*if( pps->pic_scaling_matrix_present_flag )
-        {
-            int i;
-            for( i = 0; i < 6 + 2* pps->transform_8x8_mode_flag; i++ )
-            {
-                bs_write_u1(b, pps->pic_scaling_list_present_flag[ i ]);
-                if( pps->pic_scaling_list_present_flag[ i ] )
-                {
-                    if( i < 6 )
-                    {
-                        write_scaling_list( b, pps->ScalingList4x4[ i ], 16,
-                                      pps->UseDefaultScalingMatrix4x4Flag[ i ] );
-                    }
-                    else
-                    {
-                        write_scaling_list( b, pps->ScalingList8x8[ i - 6 ], 64,
-                                      pps->UseDefaultScalingMatrix8x8Flag[ i - 6 ] );
-                    }
-                }
-            }
-        }*/
-        bs_write_se(b, pps->second_chroma_qp_index_offset);
+
+        bs_write_se(b, pic_param->second_chroma_qp_index_offset);
     }
 
     write_rbsp_trailing_bits(b);

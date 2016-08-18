@@ -27,16 +27,24 @@
 #include <stdio.h>
 #include <assert.h>
 
-#include <vdpau/vdpau.h>
+#include <va/va.h>
 
 #include "bs.h"
 
-int write_nal_unit(int nal_unit_type, int width, int height, VdpDecoderProfile profile, VdpPictureInfoH264 *vdppi, uint8_t* buf, int size);
+int 
+write_nal_unit
+(int nal_unit_type, int width, int height, VAProfile profile, 
+VAPictureParameterBufferH264 *pic_param, 
+VASliceParameterBufferH264 *slice_param, uint8_t* buf, int size);
 
-void write_seq_parameter_set_rbsp(int width, int height, VdpDecoderProfile profile, VdpPictureInfoH264* sps, bs_t* b);
+void write_seq_parameter_set_rbsp(int width, int height, VAProfile profile, 
+	VAPictureParameterBufferH264 *pic_param, bs_t* b);
+
 void write_scaling_list(bs_t* b, uint8_t* scalingList, int sizeOfScalingList, int useDefaultScalingMatrixFlag );
 
-void write_pic_parameter_set_rbsp(VdpPictureInfoH264* pps, bs_t* b);
+void 
+write_pic_parameter_set_rbsp(VAPictureParameterBufferH264 *pic_param, 
+	VASliceParameterBufferH264 *slice_param , bs_t* b);
 
 void write_rbsp_trailing_bits(bs_t* b);
 

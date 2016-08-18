@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <vdpau/vdpau.h>
+#include <va/va.h>
 
 /* init & return priv ctx */
 void *h264d_init(void);
@@ -18,9 +18,10 @@ bool h264d_prepare_data_raw(void *dec, void *buffer, size_t size,
 bool h264d_prepare_data(void *dec, struct v4l2_buffer *buffer,
 		size_t *num_ctrls, uint32_t *ctrl_ids,
 		void **payloads, uint32_t *payload_sizes);
-
-void h264d_update_info(void *dec, VdpDecoderProfile profile,
-		int width, int height, VdpPictureInfoH264 *info);
+void 
+h264d_update_param(void *dec, VAProfile profile,
+int width, int height, VAPictureParameterBufferH264 *pic_param,
+VASliceParameterBufferH264 *slice_param);
 
 /* a new picture decoded */
 void h264d_picture_ready(void *dec, int index);

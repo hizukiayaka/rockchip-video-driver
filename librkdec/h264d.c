@@ -151,17 +151,20 @@ int h264d_get_unrefed_picture(void *dec)
     return ctx->ops->get_unrefed_picture(dec);
 }
 
-void h264d_update_info(void *dec, VdpDecoderProfile profile,
-		int width, int height, VdpPictureInfoH264 *info)
+void 
+h264d_update_param(void *dec, VAProfile profile,
+int width, int height, VAPictureParameterBufferH264 *pic_param,
+VASliceParameterBufferH264 *slice_param)
 {
 	struct rk_avc_decoder *ctx = (struct rk_avc_decoder*) dec;
 	char header[256];
 	int header_len;
 
 	header_len = write_nal_unit(NAL_UNIT_TYPE_SPS, width, height,
-			profile, info, header, sizeof(header));
+			profile, pic_param, slice_param, header, 
+			sizeof(header));
 	header_len += write_nal_unit(NAL_UNIT_TYPE_PPS, width, height,
-			profile, info, header + header_len,
+			profile, pic_param, slice_param, header + header_len,
 			sizeof(header) - header_len);
 
 	if (memcmp(ctx->header, header, sizeof(header))) {
