@@ -51,7 +51,7 @@ static struct hw_codec_info rk3288_hw_codec_info = {
 
 	.max_width = 4096,
 	.max_height = 2304,
-	.min_linear_wpitch = 64,
+	.min_linear_wpitch = 16,
 	.min_linear_hpitch = 16,
 
 	.h264_dec_chroma_formats = EXTRA_H264_DEC_CHROMA_FORMATS,
