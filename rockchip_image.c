@@ -36,30 +36,30 @@ get_image_i420_sw(struct object_image *obj_image, uint8_t * image_data,
 	dst[Y] = image_data + obj_image->image.offsets[Y];
 	src[0] = (uint8_t *) obj_surface->buffer;
 	dst[U] = image_data + obj_image->image.offsets[U];
-	src[1] = src[0] + obj_surface->orig_width * obj_surface->orig_height;
+	src[1] = src[0] + obj_surface->width * obj_surface->height;
 	dst[V] = image_data + obj_image->image.offsets[V];
 	src[2] = src[1] + 
-		(obj_surface->orig_width / 2) * (obj_surface->orig_height / 2);
+		(obj_surface->width / 2) * (obj_surface->height / 2);
 	/* Y plane */
 	dst[Y] += rect->y * obj_image->image.pitches[Y] + rect->x;
-	src[0] += rect->y * obj_surface->orig_width + rect->x;
+	src[0] += rect->y * obj_surface->width + rect->x;
 	memcpy_pic(dst[Y], obj_image->image.pitches[Y],
-		   src[0], obj_surface->orig_width, rect->width, rect->height);
+		   src[0], obj_surface->width, rect->width, rect->height);
 
 	/* U plane */
 	dst[U] +=
 	    (rect->y / 2) * obj_image->image.pitches[U] + rect->x / 2;
 	src[1] += (rect->y / 2) * obj_surface->orig_width / 2 + rect->x / 2;
 	memcpy_pic(dst[U], obj_image->image.pitches[U],
-		   src[1], obj_surface->orig_width / 2,
+		   src[1], obj_surface->width / 2,
 		   rect->width / 2, rect->height / 2);
 
 	/* V plane */
 	dst[V] +=
 	    (rect->y / 2) * obj_image->image.pitches[V] + rect->x / 2;
-	src[2] += (rect->y / 2) * obj_surface->orig_width / 2 + rect->x / 2;
+	src[2] += (rect->y / 2) * obj_surface->width / 2 + rect->x / 2;
 	memcpy_pic(dst[V], obj_image->image.pitches[V],
-		   src[2], obj_surface->orig_width / 2,
+		   src[2], obj_surface->width / 2,
 		   rect->width / 2, rect->height / 2);
 
 	return va_status;
@@ -83,23 +83,21 @@ get_image_nv12_sw(struct object_image *obj_image, uint8_t * image_data,
 	dst[0] = image_data + obj_image->image.offsets[0];
 	src[0] = (uint8_t *) obj_surface->buffer;
 	dst[1] = image_data + obj_image->image.offsets[1];
-	src[1] = src[0] + obj_surface->orig_width * obj_surface->orig_height;
+	src[1] = src[0] + obj_surface->width * obj_surface->height;
 
 	/* Y plane */
 	dst[0] += rect->y * obj_image->image.pitches[0] + rect->x;
-	src[0] += rect->y * obj_surface->orig_width + rect->x;
+	src[0] += rect->y * obj_surface->width + rect->x;
 	memcpy_pic(dst[0], obj_image->image.pitches[0],
-		   src[0], obj_surface->orig_width, rect->width, rect->height);
+		   src[0], obj_surface->width, rect->width, rect->height);
 
 	/* UV plane */
 	dst[1] +=
 	    (rect->y / 2) * obj_image->image.pitches[1] + (rect->x & -2);
-	src[1] += (rect->y / 2) * obj_surface->orig_width + (rect->x & -2);
+	src[1] += (rect->y / 2) * obj_surface->width + (rect->x & -2);
 	memcpy_pic(dst[1], obj_image->image.pitches[1],
-		   src[1], obj_surface->orig_width,
+		   src[1], obj_surface->width,
 		   rect->width, rect->height / 2);
 
 	return va_status;
 }
-
-
