@@ -51,6 +51,15 @@ struct hw_context *rk3288_dec_hw_context_init
 		hw_ctx = NULL;
 	}
 #endif
+#ifdef DECODER_BACKEND_LIBVPU
+	hw_ctx = decoder_v4l2_create_context();
+	if (!decoder_rk_v4l2_init(hw_ctx, obj_config))
+	{
+		free(hw_ctx);
+		hw_ctx = NULL;
+	}
+
+#endif
 
 	return hw_ctx;
 
@@ -105,8 +114,6 @@ DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(iq_matrix, iq_matrix)
 DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(bit_plane, bit_plane)
 DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(huffman_table, huffman_table)
 DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(probability_data, probability_data)
-/* only used by mpp backend now */
-DEF_RENDER_DECODE_SINGLE_BUFFER_FUNC(image_data, image_data)
 
 #define DEF_RENDER_DECODE_MULTI_BUFFER_FUNC(name, member) DEF_RENDER_MULTI_BUFFER_FUNC(decode, name, member)
 DEF_RENDER_DECODE_MULTI_BUFFER_FUNC(slice_parameter, slice_params)
@@ -149,10 +156,6 @@ VABufferID * buffers, int num_buffers)
 		case VASliceDataBufferType:
 			vaStatus =
 			    ROCKCHIP_RENDER_DECODE_BUFFER(slice_data);
-			break;
-		case VAImageBufferType:
-			vaStatus = 
-			    ROCKCHIP_RENDER_DECODE_BUFFER(image_data);
 			break;
 		default:
 			vaStatus = VA_STATUS_ERROR_UNSUPPORTED_BUFFERTYPE;
