@@ -122,15 +122,14 @@ static VAStatus rockchip_QueryConfigProfiles(
         profile_list[i++] = VAProfileVP8Version0_3;
     }
 
-#if VAAPI_SUPPORT_HEVC
+#if VA_CHECK_VERSION(0,37,0)
     if (HAS_HEVC_DECODING(rk_data)||
         HAS_HEVC_ENCODING(rk_data)) {
         profile_list[i++] = VAProfileHEVCMain;
     }
-
 #endif
 
-#if VAAPI_SUPPORT_VP9
+#if VA_CHECK_VERSION(0,38,0)
     if(HAS_VP9_DECODING_PROFILE(rk_data, VAProfileVP9Profile0) ||
         HAS_VP9_ENCODING(rk_data)) {
         profile_list[i++] = VAProfileVP9Profile0;
@@ -184,7 +183,7 @@ static VAStatus rockchip_QueryConfigEntrypoints(
 
 	    break;
 
-#if VAAPI_SUPPORT_HEVC
+#if VA_CHECK_VERSION(0,37,0)
 	case VAProfileHEVCMain:
 	    if (HAS_HEVC_DECODING(rk_data))
 		    entrypoint_list[n++] = VAEntrypointVLD;
@@ -193,7 +192,8 @@ static VAStatus rockchip_QueryConfigEntrypoints(
 
 	    break;
 #endif
-#if VAAPI_SUPPORT_VP9
+
+#if VA_CHECK_VERSION(0,38,0)
 	case VAProfileVP9Profile0:
 	case VAProfileVP9Profile2:
 	    if(HAS_VP9_DECODING_PROFILE(rk_data, profile))
