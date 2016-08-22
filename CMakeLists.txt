@@ -25,14 +25,25 @@ set(CODEC_BACKEND "" CACHE STRING "Select the backend for both encoder/decoder")
 if(${CODEC_BACKEND} MATCHES "dummy")
 set(DECODER_BACKEND_DUMMY 1)
 set(ENCODER_BACKEND_DUMMY 1)
-set(BUILD_IN_BACKEND "rockchip_decoder_dummy.c")
+set(BUILD_IN_BACKEND ${BUILD_IN_BACKEND} rockchip_decoder_dummy.c)
+set(BACKEND_SUPPORT_LIBRARY ${BACKEND_SUPPORT_LIBRARY} m)
 endif(${CODEC_BACKEND} MATCHES "dummy")
 
 if(${CODEC_BACKEND} MATCHES "mpp")
 set(DECODER_BACKEND_MPP 1)
 set(ENCODER_BACKEND_MPP 1)
-set(BUILD_IN_BACKEND "rockchip_decoder_mpp.c")
+set(BUILD_IN_BACKEND ${BUILD_IN_BACKEND} rockchip_decoder_mpp.c)
 endif(${CODEC_BACKEND} MATCHES "mpp")
+
+if(${CODEC_BACKEND} MATCHES "libvpu")
+set(DECODER_BACKEND_LIBVPU 1)
+set(ENCODER_BACKEND_LIBVPU 1)
+set(BUILD_IN_BACKEND ${BUILD_IN_BACKEND} v4l2_utils.c rockchip_decoder_v4l2.c)
+
+ADD_SUBDIRECTORY (librkdec)
+set(BACKEND_SUPPORT_LIBRARY ${BACKEND_SUPPORT_LIBRARY} rkdec)
+set(BACKEND_INCLUDE_DIR ${BACKEND_INCLUDE_DIR} librkdec/include/)
+endif(${CODEC_BACKEND} MATCHES "libvpu")
 
 set(VA_DRIVER_INIT_FUNC "__vaDriverInit_${VA_MAJOR_VERSION}_${VA_MINOR_VERSION}")
 CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake"
@@ -40,7 +51,7 @@ CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake"
 # End generate the build configure file
 
 ADD_LIBRARY(rockchip_drv_video SHARED 
-"${BUILD_IN_BACKEND}" 
+${BUILD_IN_BACKEND} 
 object_heap.c 
 rockchip_device_info.c rockchip_backend.c 
 rockchip_debug.c rockchip_memory.c rockchip_image.c
@@ -48,14 +59,15 @@ rockchip_drv_video.c
 )
 
 TARGET_LINK_LIBRARIES(rockchip_drv_video 
-m
 ${PTHREAD_LIBRARIES} 
 ${LIBVA_LIBRARIES} 
+${BACKEND_SUPPORT_LIBRARY}
 )
 
 TARGET_INCLUDE_DIRECTORIES(rockchip_drv_video PUBLIC 
 ${PTHREAD_INCLUDE_DIRS}
 ${LIBVA_INCLUDE_DIRS} 
+${BACKEND_INCLUDE_DIR}
 )
 
 TARGET_COMPILE_OPTIONS(rockchip_drv_video PUBLIC 

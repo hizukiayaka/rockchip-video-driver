@@ -34,4 +34,7 @@
 #cmakedefine DECODER_BACKEND_MPP
 #cmakedefine ENCODER_BACKEND_MPP
 
+#cmakedefine DECODER_BACKEND_LIBVPU
+#cmakedefine ENCODER_BACKEND_LIBVPU
+
 #endif
