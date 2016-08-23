@@ -1049,14 +1049,44 @@ static VAStatus rockchip_DestroyContext(
     object_context_p obj_context = CONTEXT(context);
     ASSERT(obj_context);
 
+    if (obj_context->hw_context) {
+	    obj_context->hw_context->destroy(obj_context->hw_context);
+            obj_context->hw_context = NULL; 
+    }
+
+    if (obj_context->codec_type == CODEC_DEC) {
+	    assert(obj_context->codec_state.decode.num_slice_params 
+			    <= obj_context->codec_state.decode.max_slice_params);
+	    assert(obj_context->codec_state.decode.num_slice_datas 
+			    <= obj_context->codec_state.decode.max_slice_datas);
+
+	    rockchip_release_buffer_store(&obj_context->codec_state.
+			    decode.pic_param);
+	    rockchip_release_buffer_store(&obj_context->codec_state.
+			    decode.iq_matrix);
+	    for (uint32_t i = 0; 
+		i < obj_context->codec_state.decode.num_slice_params; i++)
+		    rockchip_release_buffer_store
+			    (&obj_context->codec_state.decode.slice_params[i]);
+	    for (uint32_t i = 0; 
+		i < obj_context->codec_state.decode.num_slice_datas; i++)
+		    rockchip_release_buffer_store
+			    (&obj_context->codec_state.decode.slice_datas[i]);
+
+	    free(obj_context->codec_state.decode.slice_params);
+	    free(obj_context->codec_state.decode.slice_datas);
+    }
+
     obj_context->context_id = -1;
     obj_context->config_id = -1;
     obj_context->picture_width = 0;
     obj_context->picture_height = 0;
+
     if (obj_context->render_targets)
     {
         free(obj_context->render_targets);
     }
+
     obj_context->render_targets = NULL;
     obj_context->num_render_targets = 0;
     obj_context->flags = 0;
