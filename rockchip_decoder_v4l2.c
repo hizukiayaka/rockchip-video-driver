@@ -375,6 +375,21 @@ decoder_rk_v4l2_init
 	return true;
 }
 
+static void
+decoder_v4l2_destroy_context(struct hw_context * hw_ctx)
+{
+	struct rk_dec_v4l2_context *rk_v4l2_ctx =
+		(struct rk_dec_v4l2_context *)hw_ctx;
+
+	if (NULL == rk_v4l2_ctx)
+		return;
+
+	h264d_deinit(rk_v4l2_ctx->wrapper_pdrvctx);
+
+	rk_v4l2_destroy(rk_v4l2_ctx->v4l2_ctx);
+	free(rk_v4l2_ctx->v4l2_ctx);
+}
+
 struct hw_context *
 decoder_v4l2_create_context()
 {
@@ -387,7 +402,7 @@ decoder_v4l2_create_context()
 	memset(rk_v4l2_ctx, 0, sizeof(rk_v4l2_ctx));
 
 	rk_v4l2_ctx->base.run = rk_dec_v4l2_decode_picture;
-	rk_v4l2_ctx->base.destroy = NULL;
+	rk_v4l2_ctx->base.destroy = decoder_v4l2_destroy_context;
 	rk_v4l2_ctx->base.get_status = NULL;
 	rk_v4l2_ctx->base.sync = NULL;
 
