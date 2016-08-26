@@ -32,11 +32,16 @@
 #include <sys/ioctl.h>
 #include <va/va.h>
 #include <va/va_backend.h>
-#include "rockchip_driver.h"
+#include "h264d.h"
 #include "rockchip_decoder_v4l2.h"
 #include "rockchip_debug.h"
+#include "rockchip_driver.h"
 #include "v4l2_utils.h"
-#include "h264d.h"
+
+#define H264_PROFILE_BASELINE  66
+#define H264_PROFILE_MAIN      77
+#define H264_PROFILE_EXTENDED  88
+#define H264_PROFILE_HIGH     100
 
 typedef struct
 {
@@ -77,20 +82,250 @@ rk_dec_release(struct rk_dec_v4l2_context *ctx)
 	}while(index >= 0);
 }
 
+static void
+rk_h264_set_sps
+(struct v4l2_ctrl_h264_sps *sps, VAPictureParameterBufferH264 *pic_param,
+ VAProfile profile)
+{
+	switch (profile) {
+	case VAProfileH264Baseline:
+		sps->profile_idc = H264_PROFILE_BASELINE;
+		sps->constraint_set_flags = 1;
+		break;
+	case VAProfileH264Main:
+		sps->profile_idc = H264_PROFILE_MAIN;
+		sps->constraint_set_flags = 0;
+		break;
+	case VAProfileH264High:
+		sps->profile_idc = VAProfileH264High;
+		sps->constraint_set_flags = 0;
+		break;
+	default:
+		rk_info_msg("rk_h264_set_sps: unknown profile %d", profile);
+		return;
+
+		break;
+	}
+
+	/* Why constant variable ? */
+	sps->level_idc = 40;
+	sps->seq_parameter_set_id = 0;
+
+	sps->chroma_format_idc =
+		pic_param->seq_fields.bits.chroma_format_idc;
+	sps->bit_depth_luma_minus8 =
+		pic_param->bit_depth_luma_minus8;
+	sps->bit_depth_chroma_minus8 =
+		pic_param->bit_depth_chroma_minus8;
+	sps->log2_max_frame_num_minus4 =
+		pic_param->seq_fields.bits.log2_max_frame_num_minus4;
+	sps->pic_order_cnt_type =
+		pic_param->seq_fields.bits.pic_order_cnt_type;
+	sps->log2_max_pic_order_cnt_lsb_minus4 =
+		pic_param->seq_fields.bits.log2_max_pic_order_cnt_lsb_minus4;
+	/* Again, why constant variable ? */
+	sps->offset_for_non_ref_pic = 0;
+	sps->offset_for_top_to_bottom_field = 0;
+	sps->num_ref_frames_in_pic_order_cnt_cycle = 0;
+
+	sps->max_num_ref_frames = pic_param->num_ref_frames;
+	sps->pic_width_in_mbs_minus1 = pic_param->picture_width_in_mbs_minus1;
+	sps->pic_height_in_map_units_minus1 =
+		pic_param->picture_height_in_mbs_minus1;
+
+	/* Not be used by kernel driver
+	sps->offset_for_ref_frame
+	*/
+
+	/* FIXME
+	sps->flags
+	 */
+}
+
+static void
+rk_h264_set_pps
+(struct v4l2_ctrl_h264_pps *pps, VAPictureParameterBufferH264 *pic_param,
+ VASliceParameterBufferH264 *slice_param)
+{
+
+	/* Why constant variable ? */
+	pps->pic_parameter_set_id = 0;
+	pps->seq_parameter_set_id = 0;
+
+	pps->num_slice_groups_minus1 =
+		pic_param->num_slice_groups_minus1;
+	pps->num_ref_idx_l0_default_active_minus1 =
+		slice_param->num_ref_idx_l0_active_minus1;
+	pps->num_ref_idx_l1_default_active_minus1 =
+		slice_param->num_ref_idx_l1_active_minus1;
+	pps->weighted_bipred_idc =
+		pic_param->pic_fields.bits.weighted_bipred_idc;
+	pps->pic_init_qp_minus26 = pic_param->pic_init_qp_minus26;
+	pps->pic_init_qs_minus26 = pic_param->pic_init_qs_minus26;
+	pps->chroma_qp_index_offset =
+		pic_param->chroma_qp_index_offset;
+	pps->second_chroma_qp_index_offset =
+		pic_param->second_chroma_qp_index_offset;
+	/*
+	pps->flags
+	*/
+}
+
+static void
+rk_h264_set_slice_param
+(struct v4l2_ctrl_h264_slice_param *param,
+ VASliceParameterBufferH264 *slice_param,
+ VAPictureParameterBufferH264 *pic_param)
+{
+	/* Not used by kernel driver
+	param->size =
+	parma->header_bit_size =
+	param->pic_order_cnt_lsb =
+	param->delta_pic_order_cnt_bottom =
+	param->delta_pic_order_cnt0 =
+	param->delta_pic_order_cnt1 =
+	param->redundant_pic_cnt =
+	param->slice_group_change_cycle
+	param->ref_pic_list0
+	*/
+
+	param->first_mb_in_slice = slice_param->first_mb_in_slice;
+	param->slice_type = slice_param->slice_type;
+
+	param->pic_parameter_set_id = 0;
+	param->colour_plane_id = 0;
+
+	param->frame_num = pic_param->frame_num;
+	/* FIXME fill me
+	param->idr_pic_id =
+	*/
+#if 0
+	param->pred_weight_table.luma_log2_weight_denom =
+		slice_param->luma_log2_weight_denom;
+	param->pred_weight_table.chroma_log2_weight_denom =
+		slice_param->chroma_log2_weight_denom;
+
+	memcpy(param->pred_weight_table.weight_factors[0].luma_weight,
+			slice_param->luma_weight_l0,
+			sizeof(slice_param->luma_weight_l0));
+	memcpy(param->pred_weight_table.weight_factors[0].luma_offset,
+			slice_param->luma_offset_l0,
+			sizeof(slice_param->luma_offset_l0));
+
+	memcpy(param->pred_weight_table.weight_factors[1].chroma_weight,
+			slice_param->chroma_weight_l0,
+			sizeof(slice_param->chroma_weight_l0));
+	memcpy(param->pred_weight_table.weight_factors[1].chroma_offset,
+			slice_param->chroma_offset_l0,
+			sizeof(slice_param->chroma_offset_l0));
+#endif
+	/* FIXME fill me
+	param->dec_ref_pic_marking_bit_size
+	param->pic_order_cnt_bit_size
+	*/
+	param->cabac_init_idc =
+		slice_param->cabac_init_idc;
+	param->slice_qp_delta =
+		slice_param->slice_qp_delta;
+	param->slice_qs_delta = 0;
+	param->disable_deblocking_filter_idc =
+		slice_param->disable_deblocking_filter_idc;
+	param->slice_alpha_c0_offset_div2 =
+		slice_param->slice_alpha_c0_offset_div2;
+	param->slice_beta_offset_div2 =
+		slice_param->slice_beta_offset_div2;
+
+	param->num_ref_idx_l0_active_minus1 =
+		slice_param->num_ref_idx_l0_active_minus1;
+	param->num_ref_idx_l1_active_minus1 =
+		slice_param->num_ref_idx_l1_active_minus1;
+
+}
+
+static void
+rk_h264_decode_set_freq_dep_quat
+(struct v4l2_ctrl_h264_scaling_matrix *scaling_matrix,
+ VAIQMatrixBufferH264 *iq_matrix)
+{
+	if (NULL == iq_matrix)
+	{
+		memset(scaling_matrix->scaling_list_4x4, 0,
+				6 * 16 * sizeof(int8_t));
+		memset(scaling_matrix->scaling_list_8x8, 0,
+			2 * 64 * sizeof(int8_t));
+
+		return;
+	}
+	memcpy(scaling_matrix->scaling_list_4x4,
+			iq_matrix->ScalingList4x4,
+			6 * 16 * sizeof(int8_t));
+	memcpy(scaling_matrix->scaling_list_8x8,
+			iq_matrix->ScalingList8x8,
+			2 * 64 * sizeof(int8_t));
+}
+
+static void
+rk_h264_decode_param(struct v4l2_ctrl_h264_decode_param *param,
+VAPictureParameterBufferH264 *pic_param)
+{
+	/* Not used by kernel
+	 * num_slices
+	 * nal_ref_idc
+	 */
+	/* FIXME more fields */
+	/*
+	 * parma->idr_pic_flag =
+	 * parma->ref_pic_list_p0
+	 * parma->ref_pic_list_b0
+	 * parma->ref_pic_list_b1
+	 */
+	param->top_field_order_cnt =
+		pic_param->CurrPic.TopFieldOrderCnt;
+	param->bottom_field_order_cnt =
+		pic_param->CurrPic.BottomFieldOrderCnt;
+
+	for (uint8_t i = 0; i < 16; i++) {
+		const VAPictureH264 * const va_pic =
+			&pic_param->ReferenceFrames[i];
+		struct v4l2_h264_dpb_entry *dpb =
+			&param->dpb[i];
+
+		/* FIXME more fields */
+		/*
+		 * dpb->buf_index =
+		 * dpb->frame_num =
+		 * dpb->pic_num =
+		 * dpb->flags =
+		 */
+		dpb->top_field_order_cnt =
+			va_pic->TopFieldOrderCnt;
+		dpb->bottom_field_order_cnt =
+			va_pic->BottomFieldOrderCnt;
+	}
+}
+
 static struct rk_v4l2_buffer *
 rk_dec_procsss_avc_object
 (struct rk_dec_v4l2_context *ctx,
  VAPictureParameterBufferH264 *pic_param, 
  VASliceParameterBufferH264 *slice_param,
  VASliceParameterBufferH264 *next_slice_param,
+ VAIQMatrixBufferH264 *iq_matrix,
  uint8_t *slice_data)
 {
 	bool is_frame = false;
 	uint32_t num_ctrls;
 	uint32_t ctrl_ids[5];
 	uint32_t payload_sizes[5];
-	struct v4l2_ctrl_h264_sps *sps;
-	struct v4l2_ctrl_h264_pps *pps;
+	struct v4l2_ctrl_h264_sps *sps_ptr;
+	struct v4l2_ctrl_h264_pps *pps_ptr;
+
+	struct v4l2_ctrl_h264_sps sps;
+	struct v4l2_ctrl_h264_pps pps;
+	struct v4l2_ctrl_h264_scaling_matrix scaling_matrix;
+	struct v4l2_ctrl_h264_slice_param v4l2_slice_param;
+	struct v4l2_ctrl_h264_decode_param dec_param;
+
 	struct v4l2_ext_controls ext_ctrls;
 	struct rk_v4l2_buffer *inbuf, *outbuf;
 	uint8_t *ptr, *ptr2, *nal_ptr;
@@ -123,43 +358,22 @@ rk_dec_procsss_avc_object
 	 * If it return true, it could be a complete frame to be decode.
 	 * But in my design it won't be trun unless the last buffer */
 	is_frame = h264d_prepare_data_raw(ctx->wrapper_pdrvctx, 
-		ptr, slice_param->slice_data_size + sizeof(start_code_prefix),
-		&num_ctrls, ctrl_ids, payloads, payload_sizes);
+			ptr, slice_param->slice_data_size 
+			+ sizeof(start_code_prefix),
+			&num_ctrls, ctrl_ids, payloads, payload_sizes);
 
-	/* Not the last slice */
-#if 0
-	if (!is_frame) {
-		if (NULL == next_slice_param)
-			inbuf->plane[0].bytesused = 0;
-		return -1;
-	}
-#else
 	if (NULL != next_slice_param)
-		NULL;
-#endif
+		return NULL;
 
-	sps = (struct v4l2_ctrl_h264_sps *)payloads[0];
-	pps = (struct v4l2_ctrl_h264_pps *)payloads[1];
+	sps_ptr = (struct v4l2_ctrl_h264_sps *)payloads[0];
+	pps_ptr = (struct v4l2_ctrl_h264_pps *)payloads[1];
 
-	pps->weighted_bipred_idc = 
-		pic_param->pic_fields.bits.weighted_bipred_idc;
-	pps->pic_init_qp_minus26 = pic_param->pic_init_qp_minus26;
-	pps->chroma_qp_index_offset =
-		pic_param->chroma_qp_index_offset;
-	pps->second_chroma_qp_index_offset = 
-		pic_param->second_chroma_qp_index_offset;
+	rk_h264_set_sps(&sps, pic_param, ctx->profile);
+	rk_h264_set_pps(&pps, pic_param, slice_param);
+	rk_h264_decode_set_freq_dep_quat(&scaling_matrix, iq_matrix);
 
-	pps->num_ref_idx_l0_default_active_minus1 = 
-		slice_param->num_ref_idx_l0_active_minus1;
-	pps->num_ref_idx_l1_default_active_minus1 = 
-		slice_param->num_ref_idx_l1_active_minus1;
-
-	sps->log2_max_frame_num_minus4 = 
-		pic_param->seq_fields.bits.log2_max_frame_num_minus4;
-	sps->log2_max_pic_order_cnt_lsb_minus4 =
-		pic_param->seq_fields.bits.log2_max_pic_order_cnt_lsb_minus4;
-	sps->pic_order_cnt_type =
-		pic_param->seq_fields.bits.pic_order_cnt_type;
+	rk_h264_set_slice_param(&v4l2_slice_param, slice_param, pic_param);
+	rk_h264_decode_param(&dec_param, pic_param);
 
 	memset(&ext_ctrls, 0, sizeof(ext_ctrls));
 	ext_ctrls.count = num_ctrls;
@@ -167,11 +381,26 @@ rk_dec_procsss_avc_object
 			sizeof(struct v4l2_ext_control));
 	ext_ctrls.request = inbuf->index;
 
-	for (uint8_t i = 0; i < num_ctrls; ++i) {
-		ext_ctrls.controls[i].id = ctrl_ids[i];
-		ext_ctrls.controls[i].ptr = payloads[i];
-		ext_ctrls.controls[i].size = payload_sizes[i];
-	}
+	ext_ctrls.controls[0].id = V4L2_CID_MPEG_VIDEO_H264_SPS;
+	ext_ctrls.controls[0].ptr = &sps;
+	ext_ctrls.controls[0].size = sizeof(sps);
+
+	ext_ctrls.controls[1].id = V4L2_CID_MPEG_VIDEO_H264_PPS;
+	ext_ctrls.controls[1].ptr = &pps;
+	ext_ctrls.controls[1].size = sizeof(pps);
+
+	ext_ctrls.controls[2].id = V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX;
+	ext_ctrls.controls[2].ptr = &scaling_matrix;
+	ext_ctrls.controls[2].size = sizeof(scaling_matrix);
+
+	ext_ctrls.controls[3].id = V4L2_CID_MPEG_VIDEO_H264_SLICE_PARAM;
+	ext_ctrls.controls[3].ptr = &v4l2_slice_param;
+	ext_ctrls.controls[3].size = sizeof(v4l2_slice_param);
+
+	ext_ctrls.controls[4].id = V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAM;
+	ext_ctrls.controls[4].ptr = &dec_param;
+	ext_ctrls.controls[4].size = sizeof(dec_param);
+
 	/* Set codec parameters need by VPU */
 	ioctl(ctx->v4l2_ctx->video_fd, VIDIOC_S_EXT_CTRLS, &ext_ctrls);
 
@@ -214,6 +443,7 @@ rk_dec_v4l2_avc_decode_picture
 	VAPictureParameterBufferH264 *pic_param = NULL;
 	VASliceParameterBufferH264 *slice_param, *next_slice_param, 
 				   *next_slice_group_param;
+	VAIQMatrixBufferH264 *iq_matrix;
 
 	struct object_context *obj_context;
 	struct object_surface *obj_surface;
@@ -226,6 +456,12 @@ rk_dec_v4l2_avc_decode_picture
 	obj_surface =
 	SURFACE(obj_context->codec_state.decode.current_render_target);
 	ASSERT(obj_surface);
+
+	if (decode_state->iq_matrix && decode_state->iq_matrix->buffer)
+		iq_matrix = (VAIQMatrixBufferH264 *)
+			decode_state->iq_matrix->buffer;
+	else
+		iq_matrix = NULL;
 
 	assert(decode_state->pic_param && decode_state->pic_param->buffer);
 	pic_param = (VAPictureParameterBufferH264 *)decode_state->pic_param->buffer;
@@ -259,9 +495,9 @@ rk_dec_v4l2_avc_decode_picture
 			 */
 		}
 
-		h264d_update_param(rk_v4l2_data->wrapper_pdrvctx, 
-			rk_v4l2_data->profile, obj_surface->width,
-			obj_surface->height, pic_param, slice_param);
+		h264d_update_param(rk_v4l2_data->wrapper_pdrvctx,
+				rk_v4l2_data->profile, obj_surface->width,
+				obj_surface->height, pic_param, slice_param);
 
 		/* Process the number of slices that the param order */
 		for (int32_t j = 0; 
@@ -286,9 +522,9 @@ rk_dec_v4l2_avc_decode_picture
 			else
 				next_slice_param = next_slice_group_param;
 			/* Hardware job begin here */
-			outbuf = rk_dec_procsss_avc_object(rk_v4l2_data, pic_param,
-					slice_param, next_slice_param, 
-					slice_data);
+			outbuf = rk_dec_procsss_avc_object(rk_v4l2_data,
+					pic_param, slice_param,
+					next_slice_param, iq_matrix, slice_data);
 			/* Get validate frame */
 			if (outbuf)
 			{
