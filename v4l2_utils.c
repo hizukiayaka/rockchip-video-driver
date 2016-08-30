@@ -266,6 +266,7 @@ static int32_t rk_v4l2_dec_qbuf_input
 	qbuf.index = buffer->index;
 	qbuf.length = format->fmt.pix_mp.num_planes;
 	qbuf.m.planes = planes;
+	qbuf.request = buffer->index;
 
 	for(uint32_t i = 0; i < format->fmt.pix_mp.num_planes; i++){
 		planes[i].bytesused = buffer->plane[i].bytesused;

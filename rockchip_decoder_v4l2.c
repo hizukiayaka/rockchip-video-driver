@@ -161,6 +161,7 @@ rk_dec_procsss_avc_object
 	ext_ctrls.count = num_ctrls;
 	ext_ctrls.controls = calloc(num_ctrls,
 			sizeof(struct v4l2_ext_control));
+	ext_ctrls.request = inbuf->index;
 
 	for (uint8_t i = 0; i < num_ctrls; ++i) {
 		ext_ctrls.controls[i].id = ctrl_ids[i];
