@@ -114,10 +114,9 @@ struct object_surface {
 	int32_t height;
 	int fourcc;
 
-	/* 
-	 * Only used by decoder dummy to hold output now
-	 */
 	void *buffer;
+	VAImageID locked_image_id;
+	VAImageID derived_image_id;
 #ifdef	DECODER_BACKEND_DUMMY
 	uint32_t num_buffers;
 	pthread_mutex_t locker;
