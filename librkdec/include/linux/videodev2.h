@@ -694,7 +694,8 @@ struct v4l2_buffer {
 		__s32		fd;
 	} m;
 	__u32			length;
-	__u32			reserved2;
+	__u16			request;
+	__u16			reserved2;
 	__u32			reserved;
 };
 
@@ -1293,7 +1294,11 @@ struct v4l2_ext_control {
 } __attribute__ ((packed));
 
 struct v4l2_ext_controls {
-	__u32 ctrl_class;
+	union {
+		__u32 ctrl_class;
+		__u32 which;
+		__u32 request;
+	};
 	__u32 count;
 	__u32 error_idx;
 	__u32 reserved[2];
