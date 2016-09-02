@@ -114,6 +114,7 @@ struct object_surface {
 	VASurfaceID surface_id;
 	int32_t orig_width;
 	int32_t orig_height;
+	int flags;
 	/* After align */
 	int32_t width;
 	int32_t height;
