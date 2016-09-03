@@ -22,19 +22,6 @@ set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -Os")
 # Begin generate the build configure file
 set(CODEC_BACKEND "" CACHE STRING "Select the backend for both encoder/decoder")
 
-if(${CODEC_BACKEND} MATCHES "dummy")
-set(DECODER_BACKEND_DUMMY 1)
-set(ENCODER_BACKEND_DUMMY 1)
-set(BUILD_IN_BACKEND ${BUILD_IN_BACKEND} rockchip_decoder_dummy.c)
-set(BACKEND_SUPPORT_LIBRARY ${BACKEND_SUPPORT_LIBRARY} m)
-endif(${CODEC_BACKEND} MATCHES "dummy")
-
-if(${CODEC_BACKEND} MATCHES "mpp")
-set(DECODER_BACKEND_MPP 1)
-set(ENCODER_BACKEND_MPP 1)
-set(BUILD_IN_BACKEND ${BUILD_IN_BACKEND} rockchip_decoder_mpp.c)
-endif(${CODEC_BACKEND} MATCHES "mpp")
-
 if(${CODEC_BACKEND} MATCHES "libvpu")
 set(DECODER_BACKEND_LIBVPU 1)
 set(ENCODER_BACKEND_LIBVPU 1)

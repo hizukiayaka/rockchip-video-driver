@@ -48,7 +48,6 @@ void rockchip_release_buffer_store(struct buffer_store **ptr)
 	buffer_store->ref_count--;
 
 	if (0 == buffer_store->ref_count) {
-		free(buffer_store->buffer);
 		buffer_store->buffer = NULL;
 		free(buffer_store);
 	}

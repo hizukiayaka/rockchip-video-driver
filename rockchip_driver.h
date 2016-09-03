@@ -123,11 +123,6 @@ struct object_surface {
 	void *buffer;
 	VAImageID locked_image_id;
 	VAImageID derived_image_id;
-#ifdef	DECODER_BACKEND_DUMMY
-	uint32_t num_buffers;
-	pthread_mutex_t locker;
-	pthread_cond_t wait_list;
-#endif
 };
 
 struct object_buffer {

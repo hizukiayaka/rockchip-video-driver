@@ -27,31 +27,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "rockchip_backend.h"
-#ifdef DECODER_BACKEND_DUMMY
-#include "rockchip_decoder_dummy.h"
-#endif
-#ifdef DECODER_BACKEND_MPP
-#include "rockchip_decoder_mpp.h"
-#endif
+#include "rockchip_decoder_v4l2.h"
 
 struct hw_context *rk3288_dec_hw_context_init
     (VADriverContextP ctx, struct object_config *obj_config) 
 {
 
 	struct hw_context *hw_ctx = NULL;
-#ifdef DECODER_BACKEND_DUMMY
-	hw_ctx = decoder_dummy_create_context();
-#endif
 
-#ifdef DECODER_BACKEND_MPP
-	hw_ctx = decoder_mpp_create_context();
-	if (!rk_mpp_init(hw_ctx, obj_config))
-	{
-		free(hw_ctx);
-		hw_ctx = NULL;
-	}
-#endif
-#ifdef DECODER_BACKEND_LIBVPU
 	hw_ctx = decoder_v4l2_create_context();
 	if (!decoder_rk_v4l2_init(hw_ctx, obj_config))
 	{
@@ -59,10 +42,7 @@ struct hw_context *rk3288_dec_hw_context_init
 		hw_ctx = NULL;
 	}
 
-#endif
-
 	return hw_ctx;
-
 }
 
 struct hw_context *rk3288_enc_hw_context_init

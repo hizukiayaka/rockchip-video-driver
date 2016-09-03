@@ -473,12 +473,6 @@ static VAStatus rockchip_CreateSurfaces(
 	obj_surface->width = ALIGN(width, rk_data->codec_info->min_linear_wpitch);
 	obj_surface->height = ALIGN(height, rk_data->codec_info->min_linear_hpitch);
 
-#ifdef	DECODER_BACKEND_DUMMY
-	obj_surface->num_buffers = 0;
-	pthread_mutex_init(&obj_surface->locker, NULL);
-	pthread_cond_init(&obj_surface->wait_list, NULL);
-#endif
-
         surfaces[i] = surfaceID;
     }
 
@@ -512,19 +506,6 @@ static VAStatus rockchip_DestroySurfaces(
     {
         obj_surface = SURFACE(surface_list[i - 1]);
         ASSERT_RET(obj_surface, VA_STATUS_ERROR_INVALID_SURFACE);
-
-	if (NULL != obj_surface->buffer) {
-#ifdef DECODER_BACKEND_MPP
-		free(obj_surface->buffer);
-#endif
-		obj_surface->buffer = NULL;
-	}
-
-#ifdef	DECODER_BACKEND_DUMMY
-	pthread_mutex_destroy(&obj_surface->locker);
-	pthread_cond_destroy(&obj_surface->wait_list);
-	obj_surface->num_buffers = 0;
-#endif
 
         object_heap_free(&rk_data->surface_heap, (object_base_p) obj_surface);
     }
@@ -808,15 +789,9 @@ struct object_image *obj_image, const VARectangle *rect)
 	struct object_context *obj_context;
 	VAStatus va_status;
 	void *image_data = NULL;
-#ifdef DECODER_BACKEND_MPP
-	void *frame_data;
-#endif
+
 	if (obj_surface->fourcc != obj_image->image.format.fourcc)
-#if 1
 		return VA_STATUS_ERROR_INVALID_IMAGE_FORMAT;
-#else
-		obj_image->image.format.fourcc = obj_surface->fourcc;
-#endif
 
 	va_status = rockchip_MapBuffer(ctx, obj_image->image.buf, &image_data);
 	if (va_status != VA_STATUS_SUCCESS) {
@@ -828,23 +803,9 @@ struct object_image *obj_image, const VARectangle *rect)
 	ASSERT(obj_context);
 
 	switch (obj_image->image.format.fourcc) {
-	case VA_FOURCC_YV12:
-	case VA_FOURCC_I420:
-#ifdef DECODER_BACKEND_DUMMY
-		pthread_mutex_lock(&obj_surface->locker);
-		get_image_i420_sw(obj_image, image_data, obj_surface, rect);
-		obj_surface->num_buffers--;
-		pthread_mutex_unlock(&obj_surface->locker);
-#endif
-#ifdef DECODER_BACKEND_MPP
-		get_image_i420_sw(obj_image, image_data, obj_surface, rect);
-#endif
-		break;
-#ifdef DECODER_BACKEND_LIBVPU
 	case VA_FOURCC_NV12:
 		get_image_nv12_sw(obj_image, image_data, obj_surface, rect);
 		break;
-#endif
 	default:
 		va_status = VA_STATUS_ERROR_OPERATION_FAILED;
 		break;
@@ -1361,29 +1322,8 @@ static VAStatus rockchip_BeginPicture(
 		obj_context->codec_state.decode.num_slice_params = 0;
 		obj_context->codec_state.decode.num_slice_datas = 0;
 
-#ifdef DECODER_BACKEND_MPP
-		rk_mpp_release_frame
-			(&obj_context->codec_state.decode.image_data->buffer);
-		rockchip_release_buffer_store
-			(&obj_context->codec_state.decode.image_data);
-#endif
-
 		/* You could do more hardware related cleanup or prepare here */
-#ifdef DECODER_BACKEND_DUMMY
-		/* Allocate buffer for surface */
-		if (0 == obj_surface->fourcc) {
-			obj_surface->fourcc = VA_FOURCC_I420;
-			size = obj_surface->width 
-				* obj_surface->height;
-			size2 = (obj_surface->width / 2) 
-				* (obj_surface->height / 2 );
-			obj_surface->buffer = malloc(size + 2 * size2);
-			ASSERT(obj_surface->buffer);
-		}
-#endif
-#ifdef DECODER_BACKEND_LIBVPU
 		obj_surface->buffer = NULL;
-#endif
 
     }
 
@@ -1558,16 +1498,6 @@ rockchip_QuerySurfaceAttributes(VADriverContextP ctx,
 
 	if (NULL == attribs)
 		return VA_STATUS_ERROR_ALLOCATION_FAILED;
-#ifdef DECODER_BACKEND_DUMMY
-	if (obj_config->entrypoint == VAEntrypointVLD) { /* decode */
-		attribs[i].type = VASurfaceAttribPixelFormat;
-		attribs[i].value.type = VAGenericValueTypeInteger;
-		attribs[i].flags = VA_SURFACE_ATTRIB_GETTABLE | VA_SURFACE_ATTRIB_SETTABLE;
-		attribs[i].value.value.i = VA_FOURCC_I420;
-		i++;
-	}
-#endif
-
 #if 0
 	attribs[i].type = VASurfaceAttribMaxWidth;
 	attribs[i].value.type = VAGenericValueTypeInteger;
