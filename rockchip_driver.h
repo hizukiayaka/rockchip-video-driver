@@ -104,6 +104,11 @@ struct object_context {
 	struct hw_context *hw_context;
 };
 
+#define SURFACE_REFERENCED      (1 << 0)
+#define SURFACE_DERIVED         (1 << 2)
+#define SURFACE_ALL_MASK        ((SURFACE_REFERENCED) | \
+		(SURFACE_DERIVED))
+
 struct object_surface {
 	struct object_base base;
 	VASurfaceID surface_id;
