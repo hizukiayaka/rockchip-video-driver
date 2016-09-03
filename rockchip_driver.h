@@ -43,7 +43,7 @@
 #define ROCKCHIP_MAX_IMAGE_FORMATS		3
 #define ROCKCHIP_MAX_SUBPIC_FORMATS		1
 #define ROCKCHIP_MAX_DISPLAY_ATTRIBUTES		4
-#define ROCKCHIP_STR_VENDOR			"Rockchip Driver 1.1"
+#define ROCKCHIP_STR_VENDOR			"Rockchip Driver 1.2"
 #define ROCKCHIP_MAX_SURFACE_ATTRIBUTES             16
 
 #define INIT_DRIVER_DATA	struct rockchip_driver_data * const rk_data = \
