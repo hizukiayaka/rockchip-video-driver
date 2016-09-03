@@ -227,6 +227,11 @@ rk_dec_v4l2_avc_decode_picture
 	assert(decode_state->pic_param && decode_state->pic_param->buffer);
 	pic_param = (VAPictureParameterBufferH264 *)decode_state->pic_param->buffer;
 
+	if (pic_param->pic_fields.bits.reference_pic_flag)
+		obj_surface->flags |= SURFACE_REFERENCED;
+	else
+		obj_surface->flags &= ~SURFACE_REFERENCED;
+
 	if (!video_ctx->input_streamon) {
 		int32_t ret = 0;
 

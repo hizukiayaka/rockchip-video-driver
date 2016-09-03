@@ -658,14 +658,102 @@ error:
 static VAStatus rockchip_DeriveImage(
 	VADriverContextP ctx,
 	VASurfaceID surface,
-	VAImage *image     /* out */
+	VAImage *out_image     /* out */
 )
 {
-    /* TODO */
-    image->image_id == VA_INVALID_ID;
-    image->buf == VA_INVALID_ID;
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	struct object_image *obj_image;
+	struct object_surface *obj_surface;
+	VAImageID image_id;
+	VAStatus va_status = VA_STATUS_ERROR_OPERATION_FAILED;
+	uint32_t size, size2;
 
-    return VA_STATUS_ERROR_OPERATION_FAILED;
+	out_image->image_id == VA_INVALID_ID;
+	obj_surface = SURFACE(surface);
+	if (NULL == obj_surface)
+		return VA_STATUS_ERROR_INVALID_SURFACE;
+	if (NULL == obj_surface->buffer) {
+		/*
+		 * FIXME the V4L2 buffer have not been allocated,
+		 * to prevent to detect the capability failed,
+		 * this bogus buffer is needed, will never be free
+		 * by the driver
+		 */
+		obj_surface->buffer = malloc(4);
+	}
+
+	ASSERT_RET(obj_surface->fourcc, VA_STATUS_ERROR_INVALID_SURFACE);
+
+	image_id = NEW_IMAGE_ID();
+
+	if (VA_INVALID_ID == image_id)
+		return VA_STATUS_ERROR_ALLOCATION_FAILED;
+
+	obj_image = IMAGE(image_id);
+	if (!obj_image)
+		return VA_STATUS_ERROR_ALLOCATION_FAILED;
+
+	obj_image->palette = NULL;
+	obj_image->derived_surface = VA_INVALID_ID;
+
+	VAImage * const image = &obj_image->image;
+	memset(image, 0, sizeof(*image));
+	image->image_id = image_id;
+	image->buf == VA_INVALID_ID;
+	image->num_palette_entries = 0;
+	image->entry_bytes = 0;
+	image->width = obj_surface->orig_width;
+	image->height = obj_surface->orig_height;
+	/* FIXME set data_size here */
+	/* image->data_size = obj_surface->size; */
+
+	image->format.fourcc = obj_surface->fourcc;
+	image->format.byte_order = VA_LSB_FIRST;
+
+	size = obj_surface->width * obj_surface->height;
+	size2 = (obj_surface->width / 2) * (obj_surface->height / 2);
+
+	switch (image->format.fourcc) {
+	case VA_FOURCC_NV12:
+		image->num_planes = 2;
+		image->pitches[0] = obj_surface->width;
+		image->offsets[0] = 0;
+		image->pitches[1] = obj_surface->width;
+		image->offsets[1] = obj_surface->width * obj_surface->height;
+		image->data_size  = size + 2 * size2;
+		break;
+	default:
+		goto error;
+	}
+
+	va_status = rockchip_allocate_refernce(ctx, VAImageBufferType, 
+			&image->buf, obj_surface->buffer, image->data_size);
+
+	if (VA_STATUS_SUCCESS != va_status)
+		goto error;
+
+
+	struct object_buffer *obj_buffer = BUFFER(image->buf);
+	if (!obj_buffer || !obj_buffer->buffer_store)
+		return VA_STATUS_ERROR_ALLOCATION_FAILED;
+	
+	if (image->num_palette_entries > 0 && image->entry_bytes > 0) {
+		obj_image->palette = malloc(image->num_palette_entries 
+				* sizeof(*obj_image->palette));
+		if (!obj_image->palette)
+			goto error;
+	}
+
+	*out_image = *image;
+	obj_surface->flags |= SURFACE_DERIVED;
+	obj_surface->derived_image_id = image_id;
+	obj_image->derived_surface = surface;
+
+	return VA_STATUS_SUCCESS;
+
+error:
+	rockchip_DestroyImage(ctx, image_id);
+	return va_status;
 }
 
 static VAStatus rockchip_DestroyImage(
@@ -675,6 +763,7 @@ static VAStatus rockchip_DestroyImage(
 {
 	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
 	struct object_image *obj_image = IMAGE(image);
+	struct object_surface *obj_surface;
 
 	if (!obj_image)
 		return VA_STATUS_SUCCESS;
@@ -688,6 +777,13 @@ static VAStatus rockchip_DestroyImage(
 			obj_image->palette = NULL;
 	}
 	
+	obj_surface = SURFACE(obj_image->derived_surface);
+
+	if (obj_surface) {
+		obj_surface->flags &= ~SURFACE_DERIVED;
+		obj_surface->derived_image_id = VA_INVALID_ID;
+	}
+
 	object_heap_free(&rk_data->image_heap, 
 		(struct object_base *)obj_image);
 
