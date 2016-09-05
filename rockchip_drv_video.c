@@ -102,6 +102,7 @@ static VAStatus rockchip_QueryConfigProfiles(
     if (HAS_H264_DECODING(rk_data) ||
         HAS_H264_ENCODING(rk_data)) {
         profile_list[i++] = VAProfileH264Baseline;
+        profile_list[i++] = VAProfileH264ConstrainedBaseline;
         profile_list[i++] = VAProfileH264Main;
         profile_list[i++] = VAProfileH264High;
     }
@@ -168,6 +169,7 @@ static VAStatus rockchip_QueryConfigEntrypoints(
        	    break;
 
         case VAProfileH264Baseline:
+	case VAProfileH264ConstrainedBaseline:
         case VAProfileH264Main:
         case VAProfileH264High:
 	    if (HAS_H264_DECODING(rk_data))
@@ -203,6 +205,13 @@ static VAStatus rockchip_QueryConfigEntrypoints(
 
 	    break;
 #endif
+	case VAProfileJPEGBaseline:
+	    if (HAS_JPEG_DECODING(rk_data))
+		    entrypoint_list[n++] = VAEntrypointVLD;
+	    if (HAS_JPEG_ENCODING(rk_data))
+		    entrypoint_list[n++] = VAEntrypointEncPicture;
+	    break;
+
         default:
             break;
     }
@@ -314,9 +323,10 @@ rockchip_CreateConfig(
                 }
                 break;
 
-        case VAProfileH264Baseline:
-        case VAProfileH264Main:
-        case VAProfileH264High:
+	case VAProfileH264Baseline:
+	case VAProfileH264ConstrainedBaseline:
+	case VAProfileH264Main:
+	case VAProfileH264High:
                 if (VAEntrypointVLD == entrypoint)
                 {
                     vaStatus = VA_STATUS_SUCCESS;
