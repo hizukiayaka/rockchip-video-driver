@@ -29,9 +29,9 @@
 #include <string.h>
 #include <stdint.h>
 #include <math.h>
+#include <sys/ioctl.h>
 #include <va/va.h>
 #include <va/va_backend.h>
-#include <sys/ioctl.h>
 #include "rockchip_driver.h"
 #include "rockchip_decoder_v4l2.h"
 #include "v4l2_utils.h"
@@ -45,6 +45,7 @@ typedef struct
 
 const static const RkV4L2FormatMap rk_v4l2_formats[] = {
 	{VAProfileH264Baseline, V4L2_PIX_FMT_H264_SLICE},
+	{VAProfileH264ConstrainedBaseline, V4L2_PIX_FMT_H264_SLICE},
 	{VAProfileH264Main, V4L2_PIX_FMT_H264_SLICE},
 	{VAProfileH264High, V4L2_PIX_FMT_H264_SLICE},
 	{}
