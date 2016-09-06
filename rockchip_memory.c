@@ -114,6 +114,9 @@ void *data, VABufferID * buf_id)
 	obj_buffer->size_element = size;
 	obj_buffer->type = type;
 	obj_buffer->buffer_store = NULL;
+	obj_buffer->dma_fd = -1;
+	obj_buffer->export_refcount = 0;
+	obj_buffer->context_id = context;
 
 	buffer_store = calloc(1, sizeof(struct buffer_store));
 	assert(buffer_store);
@@ -170,6 +173,9 @@ VABufferID *buf_id, void *data, unsigned int size)
 	obj_buffer->size_element = size;
 	obj_buffer->type = type;
 	obj_buffer->buffer_store = NULL;
+	obj_buffer->dma_fd = -1;
+	obj_buffer->export_refcount = 0;
+	obj_buffer->context_id = VA_INVALID_ID;
 
 	buffer_store = calloc(1, sizeof(struct buffer_store));
 	assert(buffer_store);

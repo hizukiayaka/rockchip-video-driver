@@ -481,6 +481,7 @@ static VAStatus rockchip_CreateSurfaces(
         }
         obj_surface->surface_id = surfaceID;
 	obj_surface->buffer = NULL;
+	obj_surface->dma_fd = -1;
 	/* FIXME set the surface format by hardware info */
 	obj_surface->fourcc = VA_FOURCC_NV12;
 
@@ -665,7 +666,6 @@ static VAStatus rockchip_DeriveImage(
 	VAStatus va_status = VA_STATUS_ERROR_OPERATION_FAILED;
 	uint32_t size, size2;
 
-	out_image->image_id == VA_INVALID_ID;
 	obj_surface = SURFACE(surface);
 	if (NULL == obj_surface)
 		return VA_STATUS_ERROR_INVALID_SURFACE;
@@ -696,7 +696,7 @@ static VAStatus rockchip_DeriveImage(
 	VAImage * const image = &obj_image->image;
 	memset(image, 0, sizeof(*image));
 	image->image_id = image_id;
-	image->buf == VA_INVALID_ID;
+	image->buf = VA_INVALID_ID;
 	image->num_palette_entries = 0;
 	image->entry_bytes = 0;
 	image->width = obj_surface->orig_width;
@@ -733,6 +733,8 @@ static VAStatus rockchip_DeriveImage(
 	struct object_buffer *obj_buffer = BUFFER(image->buf);
 	if (!obj_buffer || !obj_buffer->buffer_store)
 		return VA_STATUS_ERROR_ALLOCATION_FAILED;
+
+	obj_buffer->dma_fd = obj_surface->dma_fd;
 	
 	if (image->num_palette_entries > 0 && image->entry_bytes > 0) {
 		obj_image->palette = malloc(image->num_palette_entries 
@@ -1256,9 +1258,12 @@ static VAStatus rockchip_MapBuffer(
 
     VAStatus vaStatus = VA_STATUS_ERROR_UNKNOWN;
     object_buffer_p obj_buffer = BUFFER(buf_id);
+    struct object_context *obj_context;
 
     ASSERT_RET(obj_buffer && obj_buffer->buffer_store, 
 		    VA_STATUS_ERROR_INVALID_BUFFER);
+
+    obj_context = CONTEXT(obj_buffer->context_id);
 
     if (NULL == obj_buffer)
     {
@@ -1335,7 +1340,6 @@ static VAStatus rockchip_BeginPicture(
     struct object_context *obj_context;
     struct object_surface *obj_surface;
     struct object_config *obj_config;
-    uint32_t size, size2;
 
     obj_context = CONTEXT(context);
     ASSERT_RET(obj_context, VA_STATUS_ERROR_INVALID_CONTEXT);
@@ -1374,6 +1378,7 @@ static VAStatus rockchip_BeginPicture(
 
 		/* You could do more hardware related cleanup or prepare here */
 		obj_surface->buffer = NULL;
+		obj_surface->dma_fd = -1;
 
     }
 
@@ -1642,8 +1647,74 @@ static VAStatus rockchip_BufferInfo(
         unsigned int *num_elements /* out */
     )
 {
-    /* TODO */
-    return VA_STATUS_ERROR_UNIMPLEMENTED;
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	struct object_buffer *obj_buffer = NULL;
+
+	obj_buffer = BUFFER(buf_id);
+
+	ASSERT_RET(obj_buffer, VA_STATUS_ERROR_INVALID_BUFFER);
+
+	*type = obj_buffer->type;
+	*size = obj_buffer->size_element;
+	*num_elements = obj_buffer->num_elements;
+
+	return VA_STATUS_SUCCESS;
+}
+
+/** Acquires buffer handle for external API usage */
+static VAStatus
+rockchip_AcquireBufferHandle(VADriverContextP ctx, VABufferID buf_id,
+		VABufferInfo *out_buf_info)
+{
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	struct object_buffer * const obj_buffer = BUFFER(buf_id);
+
+	if (NULL == obj_buffer || (0 > obj_buffer))
+		return VA_STATUS_ERROR_INVALID_BUFFER;
+	/* XXX: only VA surface|image like buffers are supported for now */
+	if (obj_buffer->type != VAImageBufferType)
+		return VA_STATUS_ERROR_UNSUPPORTED_BUFFERTYPE;
+	if (NULL != out_buf_info)
+		if (VA_SURFACE_ATTRIB_MEM_TYPE_V4L2 != out_buf_info->mem_type)
+		return VA_STATUS_ERROR_UNSUPPORTED_MEMORY_TYPE;
+
+	/* FIXME Synchronization */
+	VABufferInfo * const buf_info = &obj_buffer->export_state;
+
+	buf_info->handle = (intptr_t)obj_buffer->dma_fd;
+	buf_info->type = obj_buffer->type;
+	buf_info->mem_size =
+		obj_buffer->num_elements * obj_buffer->size_element;
+
+	obj_buffer->export_refcount++;
+
+	*out_buf_info = obj_buffer->export_state;
+
+	return VA_STATUS_SUCCESS;
+}
+
+/** Releases buffer handle after usage from external API */
+static VAStatus
+rockchip_ReleaseBufferHandle(VADriverContextP ctx, VABufferID buf_id)
+{
+
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	struct object_buffer * const obj_buffer = BUFFER(buf_id);
+
+	if (!obj_buffer)
+		return VA_STATUS_ERROR_INVALID_BUFFER;
+
+	if (obj_buffer->export_refcount == 0)
+		return VA_STATUS_ERROR_INVALID_BUFFER;
+
+	if (--obj_buffer->export_refcount == 0) {
+		VABufferInfo * const buf_info = &obj_buffer->export_state;
+
+		/* Do some harware relationed cleanup jobs here */
+		buf_info->mem_type = 0;
+	}
+
+	return VA_STATUS_SUCCESS;
 }
 
 static VAStatus rockchip_LockSurface(
@@ -1893,6 +1964,11 @@ VAStatus VA_DRIVER_INIT_FUNC(  VADriverContextP ctx )
     vtable->vaBufferInfo = rockchip_BufferInfo;
     vtable->vaQuerySurfaceAttributes = rockchip_QuerySurfaceAttributes;
     /* TODO */
+
+#if VA_CHECK_VERSION(0,36,0)
+    vtable->vaAcquireBufferHandle = rockchip_AcquireBufferHandle;
+    vtable->vaReleaseBufferHandle = rockchip_ReleaseBufferHandle;
+#endif
 
     rk_data = (struct rockchip_driver_data *) malloc(sizeof(*rk_data) );
     if (NULL == rk_data) {
