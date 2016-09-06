@@ -36,9 +36,9 @@ struct rk_v4l2_ops {
 	int32_t(*qbuf_output) 
 		(void *, struct rk_v4l2_buffer *);
 	int32_t(*dqbuf_input) 
-		(void *, struct rk_v4l2_buffer *);
+		(void *, struct rk_v4l2_buffer **);
 	int32_t(*dqbuf_output) 
-		(void *, struct rk_v4l2_buffer *);
+		(void *, struct rk_v4l2_buffer **);
 };
 
 struct rk_v4l2_object {
@@ -65,8 +65,10 @@ struct rk_v4l2_object {
 	int32_t has_free_output_buffers;
 };
 struct rk_v4l2_buffer *rk_v4l2_get_input_buffer(struct rk_v4l2_object *ctx);
+struct rk_v4l2_buffer *rk_v4l2_get_output_buffer(struct rk_v4l2_object *ctx);
 
 bool rk_v4l2_streamon_all(struct rk_v4l2_object *ctx);
 struct rk_v4l2_object *rk_v4l2_dec_create(int8_t *vpu_path);
+struct rk_v4l2_object *rk_v4l2_enc_create(int8_t *vpu_path);
 void rk_v4l2_destroy(struct rk_v4l2_object *ctx);
 #endif

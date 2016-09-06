@@ -78,13 +78,14 @@ static void rk_v4l2_dec_output_release(struct rk_v4l2_object *ctx)
 	ioctl(ctx->video_fd, VIDIOC_REQBUFS, &breq);
 }
 
-static int32_t rk_v4l2_dec_input_allocate
+static int32_t rk_v4l2_input_allocate
 (void *data, uint32_t count)
 {
 	struct rk_v4l2_object *ctx = (struct rk_v4l2_object *)data;
 	struct v4l2_requestbuffers breq = { count, 
 		V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, V4L2_MEMORY_MMAP };
 	struct v4l2_buffer buffer;
+	struct v4l2_exportbuffer expbuf;
 	struct v4l2_format *format = &ctx->input_format;
 	struct v4l2_plane planes[RK_VIDEO_MAX_PLANES];
 
@@ -109,6 +110,7 @@ static int32_t rk_v4l2_dec_input_allocate
 	}
 	ctx->num_input_buffers = breq.count;
 
+	memset(&expbuf, 0, sizeof(expbuf));
 	memset(&buffer, 0, sizeof(buffer));
 	memset(&planes, 0, sizeof(planes));
 
@@ -116,6 +118,9 @@ static int32_t rk_v4l2_dec_input_allocate
 	buffer.memory = V4L2_MEMORY_MMAP;
 	buffer.length = format->fmt.pix_mp.num_planes;
 	buffer.m.planes = planes;
+
+	expbuf.type = format->type;
+	expbuf.flags = O_CLOEXEC | O_RDWR;
 
 	for (int32_t i = 0; i < breq.count; i++) {
 		buffer.index = i;
@@ -125,22 +130,35 @@ static int32_t rk_v4l2_dec_input_allocate
 			 return 0;
 		 }
 
-		 for (int32_t j = 0; j < format->fmt.pix_mp.num_planes; j++) {
-			 void *ptr = mmap(NULL, buffer.m.planes[j].length,
+		expbuf.index = i;
+		for (int32_t j = 0; j < format->fmt.pix_mp.num_planes; j++) {
+			void *ptr = NULL;
+			expbuf.plane = j;
+
+			if (ioctl(ctx->video_fd, VIDIOC_EXPBUF, &expbuf) < 0) 
+			{
+				rk_error_msg
+					("Export of output buffer failed\n");
+				return i;
+			}
+
+			ptr = mmap(NULL, buffer.m.planes[j].length,
 					 PROT_READ | PROT_WRITE,
 					 MAP_SHARED,
-					 ctx->video_fd,
-					 buffer.m.planes[j].m.mem_offset);
-			 if (ptr == MAP_FAILED) {
-				 rk_error_msg("Failed to map input buffer");
-			 }
-			 ctx->input_buffer[i].plane[j].length =
-				 buffer.m.planes[j].length;
-			 ctx->input_buffer[i].plane[j].data = ptr;
+					 expbuf.fd,
+					 0);
 
-		 }
-		 ctx->input_buffer[i].state = BUFFER_FREE;
-		 ctx->input_buffer[i].index = i;
+			if (ptr == MAP_FAILED) {
+				rk_error_msg("Failed to map input buffer");
+			}
+			ctx->input_buffer[i].plane[j].length =
+				 buffer.m.planes[j].length;
+			ctx->input_buffer[i].plane[j].data = ptr;
+			ctx->input_buffer[i].plane[j].dma_fd = expbuf.fd;
+
+		}
+		ctx->input_buffer[i].state = BUFFER_FREE;
+		ctx->input_buffer[i].index = i;
 
 	}
 	ctx->has_free_input_buffers = breq.count;
@@ -148,7 +166,7 @@ static int32_t rk_v4l2_dec_input_allocate
 	return breq.count;
 }
 
-static int32_t rk_v4l2_dec_output_allocate
+static int32_t rk_v4l2_output_allocate
 (void *data, uint32_t count)
 {
 	struct rk_v4l2_object *ctx = (struct rk_v4l2_object *)data;
@@ -159,8 +177,6 @@ static int32_t rk_v4l2_dec_output_allocate
 	struct v4l2_buffer buffer;
 	struct v4l2_plane planes[RK_VIDEO_MAX_PLANES];
 	int32_t ret;
-
-	rk_v4l2_dec_output_release(ctx);
 
 	ret = ioctl(ctx->video_fd, VIDIOC_REQBUFS, &breq);
 	if (ret < 0) {
@@ -259,7 +275,7 @@ rk_v4l2_get_output_buffer(struct rk_v4l2_object *ctx)
 	return NULL;
 }
 
-static int32_t rk_v4l2_dec_qbuf_input
+static int32_t rk_v4l2_qbuf_input
 (void *data, struct rk_v4l2_buffer *buffer)
 {
 	struct rk_v4l2_object *ctx = (struct rk_v4l2_object *)data;
@@ -295,7 +311,7 @@ static int32_t rk_v4l2_dec_qbuf_input
 	return 0;
 }
 
-static int32_t rk_v4l2_dec_qbuf_output
+static int32_t rk_v4l2_qbuf_output
 (void *data, struct rk_v4l2_buffer *buffer)
 {
 	struct rk_v4l2_object *ctx = (struct rk_v4l2_object *)data;
@@ -325,7 +341,7 @@ static int32_t rk_v4l2_dec_qbuf_output
 	return 0;
 }
 
-static int32_t rk_v4l2_dec_dqbuf_input
+static int32_t rk_v4l2_dqbuf_input
 (void *data, struct rk_v4l2_buffer **buffer)
 {
 	struct rk_v4l2_object *ctx = (struct rk_v4l2_object *)data;
@@ -358,7 +374,7 @@ static int32_t rk_v4l2_dec_dqbuf_input
 	return 0;
 }
 
-static int32_t rk_v4l2_dec_dqbuf_output
+static int32_t rk_v4l2_dqbuf_output
 (void *data, struct rk_v4l2_buffer **buffer)
 {
 	struct rk_v4l2_object *ctx = (struct rk_v4l2_object *)data;
@@ -411,7 +427,7 @@ rk_v4l2_dec_set_codec(void *data, int32_t codec_type)
 }
 
 static int32_t 
-rk_v4l2_dec_set_fmt(void *data, uint32_t reversed)
+rk_v4l2_dec_set_fmt(void *data, int32_t reversed)
 {
 	struct rk_v4l2_object *ctx = (struct rk_v4l2_object *)data;
 	struct v4l2_format format;
@@ -419,6 +435,41 @@ rk_v4l2_dec_set_fmt(void *data, uint32_t reversed)
 	memset(&format, 0, sizeof(format));
 
 	format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	format.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_NV12;
+	format.fmt.pix_mp.width = ctx->input_size.w;
+	format.fmt.pix_mp.height = ctx->input_size.h;
+	format.fmt.pix_mp.num_planes = 1;
+	ctx->output_format = format;
+
+	return (ioctl(ctx->video_fd, VIDIOC_S_FMT, &format));
+}
+
+static int32_t 
+rk_v4l2_enc_set_codec(void *data, int32_t codec_type) 
+{
+	struct rk_v4l2_object *ctx = (struct rk_v4l2_object *)data;
+	struct v4l2_format format;
+
+	memset(&format, 0, sizeof(format));
+
+	format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	format.fmt.pix_mp.pixelformat = codec_type;
+	format.fmt.pix_mp.plane_fmt[0].sizeimage = MAX_CODEC_BUFFER;
+	format.fmt.pix_mp.num_planes = 1;
+	ctx->input_format = format;
+
+	return (ioctl(ctx->video_fd, VIDIOC_S_FMT, &format));
+}
+
+static int32_t 
+rk_v4l2_enc_set_fmt(void *data, int32_t reversed)
+{
+	struct rk_v4l2_object *ctx = (struct rk_v4l2_object *)data;
+	struct v4l2_format format;
+
+	memset(&format, 0, sizeof(format));
+
+	format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 	format.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_NV12;
 	format.fmt.pix_mp.width = ctx->input_size.w;
 	format.fmt.pix_mp.height = ctx->input_size.h;
@@ -479,14 +530,63 @@ struct rk_v4l2_object *rk_v4l2_dec_create(int8_t *vpu_path)
 		}
 	}
 
-	ctx->ops.input_alloc = rk_v4l2_dec_input_allocate;
-	ctx->ops.output_alloc = rk_v4l2_dec_output_allocate;
+	ctx->ops.input_alloc = rk_v4l2_input_allocate;
+	ctx->ops.output_alloc = rk_v4l2_output_allocate;
 	ctx->ops.set_codec = rk_v4l2_dec_set_codec;
 	ctx->ops.set_format = rk_v4l2_dec_set_fmt;
-	ctx->ops.qbuf_input = rk_v4l2_dec_qbuf_input;
-	ctx->ops.qbuf_output = rk_v4l2_dec_qbuf_output;
-	ctx->ops.dqbuf_input = rk_v4l2_dec_dqbuf_input;
-	ctx->ops.dqbuf_output = rk_v4l2_dec_dqbuf_output;
+	ctx->ops.qbuf_input = rk_v4l2_qbuf_input;
+	ctx->ops.qbuf_output = rk_v4l2_qbuf_output;
+	ctx->ops.dqbuf_input = rk_v4l2_dqbuf_input;
+	ctx->ops.dqbuf_output = rk_v4l2_dqbuf_output;
+
+	return ctx;
+create_ctx_err:
+	free(ctx);
+	return NULL;
+}
+
+static int8_t *rk_vpu_enc_list[] = {
+	"rockchip-vpu-venc",	
+	"rockchip-vpu-enc",
+	"rk3288-vpu-enc",
+};
+
+struct rk_v4l2_object *rk_v4l2_enc_create(int8_t *vpu_path)
+{
+	struct rk_v4l2_object *ctx;
+
+	ctx = malloc(sizeof(struct rk_v4l2_object));
+	if (NULL == ctx)
+		return NULL;
+
+	ctx->video_fd = -1;
+
+	if (NULL != vpu_path)
+	{
+		if (!rk_v4l2_open(ctx, vpu_path))
+			goto create_ctx_err;
+	}
+	else 
+	{
+		for (uint8_t i = 0; 
+			i < (sizeof(rk_vpu_enc_list)/sizeof(int8_t *)); i++)
+		{
+			if (rk_v4l2_open_by_name(ctx, rk_vpu_enc_list[i]))
+				break;
+
+			if ((sizeof(rk_vpu_enc_list)/sizeof(uint8_t *)) == i)
+				goto create_ctx_err;
+		}
+	}
+
+	ctx->ops.input_alloc = rk_v4l2_input_allocate;
+	ctx->ops.output_alloc = rk_v4l2_output_allocate;
+	ctx->ops.set_codec = rk_v4l2_enc_set_codec;
+	ctx->ops.set_format = rk_v4l2_enc_set_fmt;
+	ctx->ops.qbuf_input = rk_v4l2_qbuf_input;
+	ctx->ops.qbuf_output = rk_v4l2_qbuf_output;
+	ctx->ops.dqbuf_input = rk_v4l2_dqbuf_input;
+	ctx->ops.dqbuf_output = rk_v4l2_dqbuf_output;
 
 	return ctx;
 create_ctx_err:
