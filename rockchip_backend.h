@@ -133,4 +133,9 @@ VAStatus
 rockchip_decoder_render_picture(VADriverContextP ctx, VAContextID context,
 VABufferID * buffers, int num_buffers);
 
+VAStatus
+rockchip_encoder_render_picture(VADriverContextP ctx, VAContextID context,
+VABufferID * buffers, int num_buffers);
+
+
 #endif
