@@ -1013,6 +1013,20 @@ static VAStatus rockchip_DeassociateSubpicture(
     return VA_STATUS_SUCCESS;
 }
 
+static inline void
+max_resolution(struct rockchip_driver_data *rk_data,
+		struct object_config *obj_config,
+		int *w,                                  /* out */
+		int *h)                                  /* out */
+{
+	if (rk_data->codec_info->max_resolution) {
+		rk_data->codec_info->max_resolution(rk_data, obj_config, w, h);
+	} else {
+		*w = rk_data->codec_info->max_width;
+		*h = rk_data->codec_info->max_height;
+	}
+}
+
 static VAStatus rockchip_CreateContext(
 		VADriverContextP ctx,
 		VAConfigID config_id,
@@ -1024,86 +1038,106 @@ static VAStatus rockchip_CreateContext(
 		VAContextID *context		/* out */
 	)
 {
-    struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
-    VAStatus vaStatus = VA_STATUS_SUCCESS;
-    object_config_p obj_config;
-    int i;
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	VAStatus vaStatus = VA_STATUS_SUCCESS;
+	object_config_p obj_config;
+	int32_t max_width, max_height;
+	int32_t contextID;
 
-    obj_config = CONFIG(config_id);
-    if (NULL == obj_config)
-    {
-        vaStatus = VA_STATUS_ERROR_INVALID_CONFIG;
-        return vaStatus;
-    }
+	obj_config = CONFIG(config_id);
+	if (NULL == obj_config)
+	{
+	    vaStatus = VA_STATUS_ERROR_INVALID_CONFIG;
+	    return vaStatus;
+	}
 
-    /* Validate flag */
-    /* Validate picture dimensions */
+	max_resolution(rk_data, obj_config, &max_width, &max_height);
+	if (picture_width > max_width ||
+		picture_height > max_height) {
+		vaStatus = VA_STATUS_ERROR_RESOLUTION_NOT_SUPPORTED;
+		return vaStatus;
+	}
 
-    int contextID = object_heap_allocate(&rk_data->context_heap);
-    object_context_p obj_context = CONTEXT(contextID);
-    if (NULL == obj_context)
-    {
-        vaStatus = VA_STATUS_ERROR_ALLOCATION_FAILED;
-        return vaStatus;
-    }
+	/* Validate flag */
+	/* Validate picture dimensions */
 
-    obj_context->context_id  = contextID;
-    *context = contextID;
-    obj_context->config_id = config_id;
-    obj_context->picture_width = picture_width;
-    obj_context->picture_height = picture_height;
-    obj_context->num_render_targets = num_render_targets;
-    obj_context->render_targets = (VASurfaceID *) calloc(num_render_targets, 
-		    sizeof(VASurfaceID));
-    obj_context->hw_context = NULL;
-    obj_context->flags = flag;
+	contextID = object_heap_allocate(&rk_data->context_heap);
+	object_context_p obj_context = CONTEXT(contextID);
+	if (NULL == obj_context)
+	{
+	    vaStatus = VA_STATUS_ERROR_ALLOCATION_FAILED;
+	    return vaStatus;
+	}
 
-    if (obj_context->render_targets == NULL)
-    {
-        vaStatus = VA_STATUS_ERROR_ALLOCATION_FAILED;
-        return vaStatus;
-    }
-    
-    for(i = 0; i < num_render_targets; i++)
-    {
-        if (NULL == SURFACE(render_targets[i]))
-        {
-            vaStatus = VA_STATUS_ERROR_INVALID_SURFACE;
-            break;
-        }
-        obj_context->render_targets[i] = render_targets[i];
-    }
+	obj_context->context_id  = contextID;
+	*context = contextID;
+	obj_context->config_id = config_id;
+	obj_context->picture_width = picture_width;
+	obj_context->picture_height = picture_height;
+	obj_context->num_render_targets = num_render_targets;
+	obj_context->render_targets = (VASurfaceID *) 
+		calloc(num_render_targets, sizeof(VASurfaceID));
+	obj_context->hw_context = NULL;
+	obj_context->flags = flag;
 
-    if (VA_STATUS_SUCCESS == vaStatus)
-    {
-	    /* For decoder */
-	    obj_context->codec_type = CODEC_DEC;
-	    memset(&obj_context->codec_state.decode, 0, sizeof(obj_context->codec_state.decode));
-	    obj_context->codec_state.decode.current_render_target = -1;
-	    /* FIXME */
-	    obj_context->codec_state.decode.max_slice_datas = NUM_SLICES;
-	    obj_context->codec_state.decode.slice_datas = calloc(obj_context->codec_state.decode.max_slice_datas,
-			    sizeof(*obj_context->codec_state.decode.slice_datas));
-	    assert(rk_data->codec_info->dec_hw_context_init);
-	    /* FIXME */
-	    obj_context->hw_context = rk_data->codec_info->dec_hw_context_init(ctx, obj_config);
-    }
+	if (obj_context->render_targets == NULL)
+	{
+		vaStatus = VA_STATUS_ERROR_ALLOCATION_FAILED;
+		return vaStatus;
+	}
 
-    rk_data->current_context_id = contextID;
+	for(uint8_t i = 0; i < num_render_targets; i++)
+	{
+		if (NULL == SURFACE(render_targets[i]))
+	    	{
+			vaStatus = VA_STATUS_ERROR_INVALID_SURFACE;
+			break;
+	    	}
+		obj_context->render_targets[i] = render_targets[i];
+	}
 
-    /* Error recovery */
-    if (VA_STATUS_SUCCESS != vaStatus)
-    {
-        obj_context->context_id = -1;
-        obj_context->config_id = -1;
-        free(obj_context->render_targets);
-        obj_context->render_targets = NULL;
-        obj_context->num_render_targets = 0;
-        obj_context->flags = 0;
-        object_heap_free( &rk_data->context_heap, (object_base_p) obj_context);
-    }
+	if (VA_STATUS_SUCCESS != vaStatus)
+		goto error;
 
-    return vaStatus;
+	if ((VAEntrypointEncSlice == obj_config->entrypoint) ||
+			(VAEntrypointEncPicture == obj_config->entrypoint)) {
+		/* For encoder */
+		obj_context->codec_type = CODEC_ENC;
+		/* TODO */
+	}
+	else {
+		/* For decoder */
+		obj_context->codec_type = CODEC_DEC;
+		memset(&obj_context->codec_state.decode, 0, 
+				sizeof(obj_context->codec_state.decode));
+		obj_context->codec_state.decode.current_render_target = -1;
+		/* FIXME */
+		obj_context->codec_state.decode.max_slice_datas = NUM_SLICES;
+		obj_context->codec_state.decode.slice_datas = 
+			calloc(obj_context->codec_state.decode.max_slice_datas,
+			  sizeof(*obj_context->codec_state.decode.slice_datas));
+		assert(rk_data->codec_info->dec_hw_context_init);
+		/* FIXME */
+		obj_context->hw_context = 
+			rk_data->codec_info->dec_hw_context_init
+			(ctx, obj_config);
+	}
+
+	rk_data->current_context_id = contextID;
+
+error:
+	if (VA_STATUS_SUCCESS != vaStatus)
+	{
+		obj_context->context_id = -1;
+		obj_context->config_id = -1;
+		free(obj_context->render_targets);
+		obj_context->render_targets = NULL;
+		obj_context->num_render_targets = 0;
+		obj_context->flags = 0;
+		object_heap_free( &rk_data->context_heap, 
+				(object_base_p) obj_context);
+	}
+	return vaStatus;
 }
 
 
