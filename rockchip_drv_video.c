@@ -43,6 +43,12 @@
 #define IMAGE_ID_OFFSET			0x0a000000
 #define SUBPIC_ID_OFFSET                0x10000000
 
+/* Check whether we are rendering to X11 (VA/X11 or EGL) */
+#define IS_VA_X11(ctx) \
+	(((ctx)->display_type & VA_DISPLAY_MAJOR_MASK) == VA_DISPLAY_X11)
+#define IS_VA_DRM(ctx) \
+	(((ctx)->display_type & VA_DISPLAY_MAJOR_MASK) == VA_DISPLAY_DRM)
+
 enum {
     ROCKCHIP_SURFACETYPE_RGBA = 1,
     ROCKCHIP_SURFACETYPE_YUV,
@@ -1509,7 +1515,18 @@ static VAStatus rockchip_PutSurface(
 	)
 {
     /* TODO */
-    return VA_STATUS_ERROR_UNKNOWN;
+#ifdef HAVE_VA_EGL
+	if (IS_VA_X11(ctx)) {
+	/* TODO */
+	}
+#endif
+#ifdef HAVE_VA_DRM
+	if (IS_VA_DRM(ctx)) {
+	/* TODO */
+	}
+#endif
+
+    return VA_STATUS_ERROR_UNIMPLEMENTED;
 }
 
 /* Not used by decoder now */
@@ -1613,8 +1630,7 @@ static VAStatus rockchip_SetDisplayAttributes (
 		int num_attributes
 	)
 {
-    /* TODO */
-    return VA_STATUS_ERROR_UNKNOWN;
+    return VA_STATUS_ERROR_UNIMPLEMENTED;
 }
 
 
@@ -1876,6 +1892,7 @@ VAStatus VA_DRIVER_INIT_FUNC(  VADriverContextP ctx )
     vtable->vaUnlockSurface = rockchip_UnlockSurface;
     vtable->vaBufferInfo = rockchip_BufferInfo;
     vtable->vaQuerySurfaceAttributes = rockchip_QuerySurfaceAttributes;
+    /* TODO */
 
     rk_data = (struct rockchip_driver_data *) malloc(sizeof(*rk_data) );
     if (NULL == rk_data) {
