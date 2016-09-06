@@ -135,6 +135,13 @@ struct object_buffer {
 	int size_element;
 
 	VABufferType type;
+
+	/* Export state */
+	int32_t dma_fd;
+	unsigned int export_refcount;
+	VABufferInfo export_state;
+
+	VAContextID context_id;
 };
 
 struct object_image {
