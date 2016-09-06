@@ -310,8 +310,11 @@ rk_dec_v4l2_avc_decode_picture
 			/* Get validate frame */
 			if (ret >= 0)
 			{
+				/* FIXME not work for multi-planes */
 				obj_surface->buffer = 
 				video_ctx->output_buffer[ret].plane[0].data;
+				obj_surface->dma_fd =
+				video_ctx->output_buffer[ret].plane[0].dma_fd;
 			}
 
 			/* Hardware job end here */
