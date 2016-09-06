@@ -121,6 +121,7 @@ struct object_surface {
 	int fourcc;
 
 	void *buffer;
+	int32_t dma_fd;
 	VAImageID locked_image_id;
 	VAImageID derived_image_id;
 };
