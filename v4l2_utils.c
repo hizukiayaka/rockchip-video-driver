@@ -229,6 +229,7 @@ static int32_t rk_v4l2_dec_output_allocate
 			ctx->output_buffer[i].plane[j].length =
 				 buffer.m.planes[j].length;
 			ctx->output_buffer[i].plane[j].data = ptr;
+			ctx->output_buffer[i].plane[j].dma_fd = expbuf.fd;
 		}
 		ctx->output_buffer[i].state = BUFFER_FREE;
 		ctx->output_buffer[i].index = i;

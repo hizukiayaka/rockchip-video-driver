@@ -20,6 +20,7 @@ struct rk_v4l2_buffer {
 		int length;
 		int bytesused;
 		void *data;
+		int32_t dma_fd;
 	} plane[RK_VIDEO_MAX_PLANES];
 	int index;
 	int state;
