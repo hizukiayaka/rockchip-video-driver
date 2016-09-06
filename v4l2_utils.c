@@ -249,6 +249,16 @@ rk_v4l2_get_input_buffer(struct rk_v4l2_object *ctx)
 	return NULL;
 }
 
+struct rk_v4l2_buffer *
+rk_v4l2_get_output_buffer(struct rk_v4l2_object *ctx)
+{
+	for (uint32_t i = 0; i < ctx->num_output_buffers; i++) {
+		if (BUFFER_FREE == ctx->output_buffer[i].state)
+			return &ctx->output_buffer[i];
+	}
+	return NULL;
+}
+
 static int32_t rk_v4l2_dec_qbuf_input
 (void *data, struct rk_v4l2_buffer *buffer)
 {
