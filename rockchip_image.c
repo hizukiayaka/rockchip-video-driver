@@ -26,7 +26,6 @@ get_image_i420_sw(struct object_image *obj_image, uint8_t * image_data,
 	const int V =
 	    obj_image->image.format.fourcc == obj_surface->fourcc ? 2 : 1;
 
-	unsigned int tiling, swizzle;
 	VAStatus va_status = VA_STATUS_SUCCESS;
 
 	ASSERT_RET(obj_surface->fourcc, VA_STATUS_ERROR_INVALID_SURFACE);
@@ -71,7 +70,6 @@ get_image_nv12_sw(struct object_image *obj_image, uint8_t * image_data,
 	       const VARectangle * rect)
 {
 	uint8_t *dst[2], *src[2];
-	unsigned int tiling, swizzle;
 	VAStatus va_status = VA_STATUS_SUCCESS;
 
 	if (!obj_surface)
