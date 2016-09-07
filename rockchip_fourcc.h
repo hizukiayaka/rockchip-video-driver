@@ -33,4 +33,8 @@
 #define VA_FOURCC_YVY2 VA_FOURCC('Y','V','Y','2')
 #endif
 
-#endif 
+#ifndef VA_FOURCC_NV12
+#define VA_FOURCC_NV12 VA_FOURCC('N','V','1','2')
+#endif
+
+#endif
