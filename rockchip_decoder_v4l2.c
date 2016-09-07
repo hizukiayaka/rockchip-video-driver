@@ -34,6 +34,7 @@
 #include <va/va_backend.h>
 #include "rockchip_driver.h"
 #include "rockchip_decoder_v4l2.h"
+#include "rockchip_debug.h"
 #include "v4l2_utils.h"
 #include "h264d.h"
 
@@ -127,13 +128,16 @@ rk_dec_procsss_avc_object
 		&num_ctrls, ctrl_ids, payloads, payload_sizes);
 
 	/* Not the last slice */
-	//if (NULL != next_slice_param))
+#if 0
 	if (!is_frame) {
 		if (NULL == next_slice_param)
 			inbuf->plane[0].bytesused = 0;
-
 		return -1;
 	}
+#else
+	if (NULL != next_slice_param)
+		return -1;
+#endif
 
 	sps = (struct v4l2_ctrl_h264_sps *)payloads[0];
 	pps = (struct v4l2_ctrl_h264_pps *)payloads[1];
@@ -188,7 +192,7 @@ rk_dec_procsss_avc_object
 		buffer_index = outbuf->index;
 	}
 	/* release the input buffer */
-	ctx->v4l2_ctx->ops.dqbuf_input(ctx->v4l2_ctx, inbuf);
+	ctx->v4l2_ctx->ops.dqbuf_input(ctx->v4l2_ctx, &inbuf);
 
 	return buffer_index;
 }
@@ -207,7 +211,6 @@ rk_dec_v4l2_avc_decode_picture
 	struct rk_v4l2_object *video_ctx = rk_v4l2_data->v4l2_ctx;
 	struct decode_state *decode_state = &codec_state->decode;
 
-	VAStatus vaStatus;
 	uint8_t *slice_data;
 	VAPictureParameterBufferH264 *pic_param = NULL;
 	VASliceParameterBufferH264 *slice_param, *next_slice_param, 
@@ -386,7 +389,7 @@ decoder_rk_v4l2_init
 }
 
 static void
-decoder_v4l2_destroy_context(struct hw_context * hw_ctx)
+decoder_v4l2_destroy_context(void *hw_ctx)
 {
 	struct rk_dec_v4l2_context *rk_v4l2_ctx =
 		(struct rk_dec_v4l2_context *)hw_ctx;
@@ -409,7 +412,7 @@ decoder_v4l2_create_context()
 	if (NULL == rk_v4l2_ctx)
 		return NULL;
 
-	memset(rk_v4l2_ctx, 0, sizeof(rk_v4l2_ctx));
+	memset(rk_v4l2_ctx, 0, sizeof(*rk_v4l2_ctx));
 
 	rk_v4l2_ctx->base.run = rk_dec_v4l2_decode_picture;
 	rk_v4l2_ctx->base.destroy = decoder_v4l2_destroy_context;
