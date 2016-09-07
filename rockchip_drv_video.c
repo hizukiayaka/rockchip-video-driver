@@ -24,17 +24,20 @@
  *
  */
 
-#include "config.h"
+#include <stdarg.h>
 #include <va/va.h>
 #include <va/va_backend.h>
 
+#include "config.h"
 #include "rockchip_driver.h"
 #include "rockchip_device_info.h"
 #include "rockchip_backend.h"
 #include "rockchip_image.h"
 #include "rockchip_debug.h"
+#ifdef HAVE_VA_EGL
+#include "rockchip_x11_gles.h"
+#endif
 
-#include <stdarg.h>
 
 #define CONFIG_ID_OFFSET		0x01000000
 #define CONTEXT_ID_OFFSET		0x02000000
@@ -1519,10 +1522,11 @@ static VAStatus rockchip_PutSurface(
 		unsigned int flags /* de-interlacing flags */
 	)
 {
-    /* TODO */
 #ifdef HAVE_VA_EGL
 	if (IS_VA_X11(ctx)) {
-	/* TODO */
+		return rockchip_x11_gles_PutSurface
+			(ctx, surface, draw, srcx, srcy, srcw, srch,
+			 destx, desty, destw, desth, cliprects, number_cliprects, flags);
 	}
 #endif
 #ifdef HAVE_VA_DRM
