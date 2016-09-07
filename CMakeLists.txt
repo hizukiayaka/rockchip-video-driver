@@ -4,6 +4,8 @@ find_package(PkgConfig)
 PROJECT(rockchip_drv_video C)
 INCLUDE(GNUInstallDirs)
 
+pkg_search_module(LIBGLESV2 glesv2)
+pkg_search_module(LIBX11 x11)
 pkg_search_module(PTHREAD pthread)
 # check the libva
 pkg_search_module(LIBVA libva)
@@ -37,29 +39,38 @@ CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake"
 	"${CMAKE_CURRENT_SOURCE_DIR}/config.h")
 # End generate the build configure file
 
-ADD_LIBRARY(rockchip_drv_video SHARED 
-${BUILD_IN_BACKEND} 
-object_heap.c 
-rockchip_device_info.c rockchip_backend.c 
+add_definitions( -DHAVE_VA_EGL=1 )
+
+ADD_LIBRARY(rockchip_drv_video SHARED
+${BUILD_IN_BACKEND}
+object_heap.c
+rockchip_device_info.c rockchip_backend.c
 rockchip_debug.c rockchip_memory.c rockchip_image.c
 rockchip_drv_video.c
+rockchip_x11_gles.c
 )
 
-TARGET_LINK_LIBRARIES(rockchip_drv_video 
-${PTHREAD_LIBRARIES} 
-${LIBVA_LIBRARIES} 
+TARGET_LINK_LIBRARIES(rockchip_drv_video
+${PTHREAD_LIBRARIES}
+${LIBVA_LIBRARIES}
+${LIBGLESV2_LIBRARIES}
+${LIBX11_LIBRARIES}
 ${BACKEND_SUPPORT_LIBRARY}
 )
 
-TARGET_INCLUDE_DIRECTORIES(rockchip_drv_video PUBLIC 
+TARGET_INCLUDE_DIRECTORIES(rockchip_drv_video PUBLIC
 ${PTHREAD_INCLUDE_DIRS}
-${LIBVA_INCLUDE_DIRS} 
+${LIBVA_INCLUDE_DIRS}
+${LIBGLESV2_INCLUDE_DIRS}
+${LIBX11_INCLUDE_DIRS}
 ${BACKEND_INCLUDE_DIR}
 )
 
-TARGET_COMPILE_OPTIONS(rockchip_drv_video PUBLIC 
+TARGET_COMPILE_OPTIONS(rockchip_drv_video PUBLIC
 ${PTHREAD_CFLAGS}
-${LIBVA_CFLAGS} 
+${LIBVA_CFLAGS}
+${LIBGLESV2_CFLAGS}
+${LIBX11_CFLAGS}
 )
 
 SET_TARGET_PROPERTIES(rockchip_drv_video PROPERTIES PREFIX "")
