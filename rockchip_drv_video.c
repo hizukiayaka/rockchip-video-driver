@@ -34,6 +34,10 @@
 #include "rockchip_image.h"
 #include "rockchip_debug.h"
 
+#ifdef HAVE_VA_EGL
+#include "rockchip_x11_gles.h"
+#endif
+
 #include <stdarg.h>
 
 #define CONFIG_ID_OFFSET		0x01000000
@@ -55,14 +59,14 @@ enum {
     ROCKCHIP_SURFACETYPE_INDEXED,
 };
 
-static VAStatus 
-rockchip_MapBuffer(VADriverContextP ctx, VABufferID buf_id, void **pbuf); 
+static VAStatus
+rockchip_MapBuffer(VADriverContextP ctx, VABufferID buf_id, void **pbuf);
 
 static VAStatus
 rockchip_UnmapBuffer(VADriverContextP ctx, VABufferID buf_id);
 
-static VAStatus 
-rockchip_CreateBuffer(VADriverContextP ctx, VAContextID context, 
+static VAStatus
+rockchip_CreateBuffer(VADriverContextP ctx, VAContextID context,
 VABufferType type, unsigned int size, unsigned int num_elements,
 void *data, VABufferID *buf_id);
 
@@ -70,7 +74,7 @@ static VAStatus rockchip_DestroyBuffer(
 VADriverContextP ctx,
 VABufferID buffer_id);
 
-static VAStatus 
+static VAStatus
 rockchip_DestroyImage(VADriverContextP ctx, VAImageID image);
 
 /* List of supported image formats */
@@ -169,7 +173,7 @@ static VAStatus rockchip_QueryConfigEntrypoints(
         case VAProfileMPEG2Main:
 	    if (HAS_MPEG2_DECODING(rk_data))
                 entrypoint_list[n++] = VAEntrypointVLD;
-	    if (HAS_MPEG2_ENCODING(rk_data)) 
+	    if (HAS_MPEG2_ENCODING(rk_data))
                 entrypoint_list[n++] = VAEntrypointEncSlice;
 
        	    break;
@@ -180,7 +184,7 @@ static VAStatus rockchip_QueryConfigEntrypoints(
         case VAProfileH264High:
 	    if (HAS_H264_DECODING(rk_data))
                 entrypoint_list[n++] = VAEntrypointVLD;
-	    if (HAS_H264_ENCODING(rk_data)) 
+	    if (HAS_H264_ENCODING(rk_data))
                 entrypoint_list[n++] = VAEntrypointEncSlice;
 
             break;
@@ -223,7 +227,7 @@ static VAStatus rockchip_QueryConfigEntrypoints(
     }
 
     /* If the assert fails then ROCKCHIP_MAX_ENTRYPOINTS needs to be bigger */
-    ASSERT_RET(n <= ROCKCHIP_MAX_ENTRYPOINTS, 
+    ASSERT_RET(n <= ROCKCHIP_MAX_ENTRYPOINTS,
 		   VA_STATUS_ERROR_OPERATION_FAILED);
     *num_entrypoints = n;
 
@@ -285,7 +289,7 @@ rockchip_update_attribute(object_config_p obj_config, VAConfigAttrib *attrib)
     return VA_STATUS_ERROR_MAX_NUM_EXCEEDED;
 }
 
-static VAStatus 
+static VAStatus
 rockchip_CreateConfig(
 	VADriverContextP ctx,
 	VAProfile profile,
@@ -402,7 +406,7 @@ rockchip_CreateConfig(
     return vaStatus;
 }
 
-static VAStatus 
+static VAStatus
 rockchip_DestroyConfig(
 	VADriverContextP ctx,
 	VAConfigID config_id)
@@ -538,7 +542,7 @@ static VAStatus rockchip_QueryImageFormats(
     uint32_t n = 0;
     for (n = 0; rockchip_image_formats_map[n].va_format.fourcc != 0; n++)
     {
-       const rockchip_image_format_map_t * const m = 
+       const rockchip_image_format_map_t * const m =
 	       &rockchip_image_formats_map[n];
        if (format_list)
           format_list[n] = m->va_format;
@@ -584,7 +588,7 @@ static VAStatus rockchip_CreateImage(
 	/* Align */
 	awidth = ALIGN(width, rk_data->codec_info->min_linear_wpitch);
 	if ((format->fourcc == VA_FOURCC_YV12) ||
-		(format->fourcc == VA_FOURCC_I420)) 
+		(format->fourcc == VA_FOURCC_I420))
 	{
 		awidth = ALIGN(width, 128);
 	}
@@ -634,7 +638,7 @@ static VAStatus rockchip_CreateImage(
 		return VA_STATUS_ERROR_ALLOCATION_FAILED;
 
 	if (image->num_palette_entries > 0 && image->entry_bytes > 0) {
-		obj_image->palette = malloc(image->num_palette_entries 
+		obj_image->palette = malloc(image->num_palette_entries
 				* sizeof(*obj_image->palette));
 		if (!obj_image->palette)
 			goto error;
@@ -723,7 +727,7 @@ static VAStatus rockchip_DeriveImage(
 		goto error;
 	}
 
-	va_status = rockchip_allocate_refernce(ctx, VAImageBufferType, 
+	va_status = rockchip_allocate_refernce(ctx, VAImageBufferType,
 			&image->buf, obj_surface->buffer, image->data_size);
 
 	if (VA_STATUS_SUCCESS != va_status)
@@ -735,9 +739,9 @@ static VAStatus rockchip_DeriveImage(
 		return VA_STATUS_ERROR_ALLOCATION_FAILED;
 
 	obj_buffer->dma_fd = obj_surface->dma_fd;
-	
+
 	if (image->num_palette_entries > 0 && image->entry_bytes > 0) {
-		obj_image->palette = malloc(image->num_palette_entries 
+		obj_image->palette = malloc(image->num_palette_entries
 				* sizeof(*obj_image->palette));
 		if (!obj_image->palette)
 			goto error;
@@ -775,7 +779,7 @@ static VAStatus rockchip_DestroyImage(
 			free(obj_image->palette);
 			obj_image->palette = NULL;
 	}
-	
+
 	obj_surface = SURFACE(obj_image->derived_surface);
 
 	if (obj_surface) {
@@ -783,7 +787,7 @@ static VAStatus rockchip_DestroyImage(
 		obj_surface->derived_image_id = VA_INVALID_ID;
 	}
 
-	object_heap_free(&rk_data->image_heap, 
+	object_heap_free(&rk_data->image_heap,
 		(struct object_base *)obj_image);
 
     return VA_STATUS_SUCCESS;
@@ -851,8 +855,8 @@ static VAStatus rockchip_GetImage(
 
 	VARectangle rect;
 	VAStatus va_status;
-	
-	struct object_context *obj_context = 
+
+	struct object_context *obj_context =
 		CONTEXT(rk_data->current_context_id);
 	struct object_surface * const obj_surface = SURFACE(surface);
 	struct object_image * const obj_image = IMAGE(image);
@@ -979,7 +983,7 @@ static VAStatus rockchip_SetSubpictureChromakey(
 static VAStatus rockchip_SetSubpictureGlobalAlpha(
 	VADriverContextP ctx,
 	VASubpictureID subpicture,
-	float global_alpha 
+	float global_alpha
 )
 {
     /* TODO */
@@ -1083,7 +1087,7 @@ static VAStatus rockchip_CreateContext(
 	obj_context->picture_width = picture_width;
 	obj_context->picture_height = picture_height;
 	obj_context->num_render_targets = num_render_targets;
-	obj_context->render_targets = (VASurfaceID *) 
+	obj_context->render_targets = (VASurfaceID *)
 		calloc(num_render_targets, sizeof(VASurfaceID));
 	obj_context->hw_context = NULL;
 	obj_context->flags = flag;
@@ -1116,17 +1120,17 @@ static VAStatus rockchip_CreateContext(
 	else {
 		/* For decoder */
 		obj_context->codec_type = CODEC_DEC;
-		memset(&obj_context->codec_state.decode, 0, 
+		memset(&obj_context->codec_state.decode, 0,
 				sizeof(obj_context->codec_state.decode));
 		obj_context->codec_state.decode.current_render_target = -1;
 		/* FIXME */
 		obj_context->codec_state.decode.max_slice_datas = NUM_SLICES;
-		obj_context->codec_state.decode.slice_datas = 
+		obj_context->codec_state.decode.slice_datas =
 			calloc(obj_context->codec_state.decode.max_slice_datas,
 			  sizeof(*obj_context->codec_state.decode.slice_datas));
 		assert(rk_data->codec_info->dec_hw_context_init);
 		/* FIXME */
-		obj_context->hw_context = 
+		obj_context->hw_context =
 			rk_data->codec_info->dec_hw_context_init
 			(ctx, obj_config);
 	}
@@ -1142,7 +1146,7 @@ error:
 		obj_context->render_targets = NULL;
 		obj_context->num_render_targets = 0;
 		obj_context->flags = 0;
-		object_heap_free( &rk_data->context_heap, 
+		object_heap_free( &rk_data->context_heap,
 				(object_base_p) obj_context);
 	}
 	return vaStatus;
@@ -1160,24 +1164,24 @@ static VAStatus rockchip_DestroyContext(
 
     if (obj_context->hw_context) {
 	    obj_context->hw_context->destroy(obj_context->hw_context);
-            obj_context->hw_context = NULL; 
+            obj_context->hw_context = NULL;
     }
 
     if (obj_context->codec_type == CODEC_DEC) {
-	    assert(obj_context->codec_state.decode.num_slice_params 
+	    assert(obj_context->codec_state.decode.num_slice_params
 			    <= obj_context->codec_state.decode.max_slice_params);
-	    assert(obj_context->codec_state.decode.num_slice_datas 
+	    assert(obj_context->codec_state.decode.num_slice_datas
 			    <= obj_context->codec_state.decode.max_slice_datas);
 
 	    rockchip_release_buffer_store(&obj_context->codec_state.
 			    decode.pic_param);
 	    rockchip_release_buffer_store(&obj_context->codec_state.
 			    decode.iq_matrix);
-	    for (uint32_t i = 0; 
+	    for (uint32_t i = 0;
 		i < obj_context->codec_state.decode.num_slice_params; i++)
 		    rockchip_release_buffer_store
 			    (&obj_context->codec_state.decode.slice_params[i]);
-	    for (uint32_t i = 0; 
+	    for (uint32_t i = 0;
 		i < obj_context->codec_state.decode.num_slice_datas; i++)
 		    rockchip_release_buffer_store
 			    (&obj_context->codec_state.decode.slice_datas[i]);
@@ -1260,7 +1264,7 @@ static VAStatus rockchip_MapBuffer(
     object_buffer_p obj_buffer = BUFFER(buf_id);
     struct object_context *obj_context;
 
-    ASSERT_RET(obj_buffer && obj_buffer->buffer_store, 
+    ASSERT_RET(obj_buffer && obj_buffer->buffer_store,
 		    VA_STATUS_ERROR_INVALID_BUFFER);
 
     obj_context = CONTEXT(obj_buffer->context_id);
@@ -1290,7 +1294,7 @@ static VAStatus rockchip_UnmapBuffer(
 
     if ((buf_id & OBJECT_HEAP_OFFSET_MASK) != BUFFER_ID_OFFSET)
 	    return VA_STATUS_ERROR_INVALID_BUFFER;
-    ASSERT_RET(obj_buffer && obj_buffer->buffer_store, 
+    ASSERT_RET(obj_buffer && obj_buffer->buffer_store,
 		    VA_STATUS_ERROR_INVALID_BUFFER);
 
     if (NULL != obj_buffer->buffer_store->buffer) {
@@ -1301,7 +1305,7 @@ static VAStatus rockchip_UnmapBuffer(
     return vaStatus;
 }
 
-static void 
+static void
 rockchip_destroy_buffer
 (struct rockchip_driver_data *driver_data, object_buffer_p obj_buffer)
 {
@@ -1365,7 +1369,7 @@ static VAStatus rockchip_BeginPicture(
 		rockchip_release_buffer_store
 				(&obj_context->codec_state.decode.huffman_table);
 
-		for (int32_t i = 0; i < obj_context->codec_state.decode.num_slice_params; i++) 
+		for (int32_t i = 0; i < obj_context->codec_state.decode.num_slice_params; i++)
 		{
 			rockchip_release_buffer_store
 					(&obj_context->codec_state.decode.slice_params[i]);
@@ -1406,7 +1410,7 @@ static VAStatus rockchip_RenderPicture(
     ASSERT_RET(obj_config, VA_STATUS_ERROR_INVALID_CONFIG);
 
     if (VAEntrypointVLD == obj_config->entrypoint) {
-       vaStatus = rockchip_decoder_render_picture(ctx, context, 
+       vaStatus = rockchip_decoder_render_picture(ctx, context,
 		       buffers, num_buffers);
     }
 
@@ -1447,7 +1451,7 @@ static VAStatus rockchip_EndPicture(
 
 	/* Hardware relative code */
     ASSERT_RET(obj_context->hw_context->run, VA_STATUS_ERROR_OPERATION_FAILED);
-    return obj_context->hw_context->run(ctx, obj_config->profile, 
+    return obj_context->hw_context->run(ctx, obj_config->profile,
 		    &obj_context->codec_state, obj_context->hw_context);
 }
 
@@ -1522,7 +1526,8 @@ static VAStatus rockchip_PutSurface(
     /* TODO */
 #ifdef HAVE_VA_EGL
 	if (IS_VA_X11(ctx)) {
-	/* TODO */
+		return rockchip_x11_gles_PutSurface(ctx, surface, draw, srcx, srcy, srcw, srch, \
+			destx, desty, destw, desth, cliprects, number_cliprects, flags);
 	}
 #endif
 #ifdef HAVE_VA_DRM
@@ -1591,8 +1596,8 @@ rockchip_QuerySurfaceAttributes(VADriverContextP ctx,
 	return vaStatus;
 }
 
-/* 
- * Query display attributes 
+/*
+ * Query display attributes
  * The caller must provide a "attr_list" array that can hold at
  * least vaMaxNumDisplayAttributes() entries. The actual number of attributes
  * returned in "attr_list" is returned in "num_attributes".
@@ -1607,11 +1612,11 @@ static VAStatus rockchip_QueryDisplayAttributes (
     return VA_STATUS_ERROR_UNKNOWN;
 }
 
-/* 
- * Get display attributes 
+/*
+ * Get display attributes
  * This function returns the current attribute values in "attr_list".
  * Only attributes returned with VA_DISPLAY_ATTRIB_GETTABLE set in the "flags" field
- * from vaQueryDisplayAttributes() can have their values retrieved.  
+ * from vaQueryDisplayAttributes() can have their values retrieved.
  */
 static VAStatus rockchip_GetDisplayAttributes (
 		VADriverContextP ctx,
@@ -1623,10 +1628,10 @@ static VAStatus rockchip_GetDisplayAttributes (
     return VA_STATUS_ERROR_UNKNOWN;
 }
 
-/* 
- * Set display attributes 
+/*
+ * Set display attributes
  * Only attributes returned with VA_DISPLAY_ATTRIB_SETTABLE set in the "flags" field
- * from vaQueryDisplayAttributes() can be set.  If the attribute is not settable or 
+ * from vaQueryDisplayAttributes() can be set.  If the attribute is not settable or
  * the value is out of range, the function returns VA_STATUS_ERROR_ATTR_NOT_SUPPORTED
  */
 static VAStatus rockchip_SetDisplayAttributes (
@@ -1751,11 +1756,16 @@ static VAStatus rockchip_Terminate( VADriverContextP ctx )
     object_config_p obj_config;
     object_heap_iterator iter;
 
+#ifdef HAVE_VA_EGL
+    /* Clean up display resources */
+	rockchip_x11_gles_destory(rk_data->x11_backend);
+#endif
+
     /* Clean up left over buffers */
     obj_buffer = (object_buffer_p) object_heap_first(&rk_data->buffer_heap, &iter);
     while (obj_buffer)
     {
-        rk_info_msg("vaTerminate: bufferID %08x still allocated, destroying\n", 
+        rk_info_msg("vaTerminate: bufferID %08x still allocated, destroying\n",
 		obj_buffer->base.id);
         rockchip_destroy_buffer(rk_data, obj_buffer);
         obj_buffer = (object_buffer_p) object_heap_next( &rk_data->buffer_heap, &iter);
@@ -1791,26 +1801,30 @@ rockchip_driver_data_init(VADriverContextP ctx)
 	/* FIXME using device id instead */
 	rk_data->codec_info = rk_get_codec_info(3288);
 
+#ifdef HAVE_VA_EGL
+	rk_data->x11_backend = NULL;
+#endif
+
 	if (NULL == rk_data->codec_info)
 		return false;
 
-	if (object_heap_init(&rk_data->config_heap, 
+	if (object_heap_init(&rk_data->config_heap,
 		sizeof(struct object_config), CONFIG_ID_OFFSET))
 	    goto err_config_heap;
 
-	if (object_heap_init(&rk_data->context_heap, 
+	if (object_heap_init(&rk_data->context_heap,
 		sizeof(struct object_context), CONTEXT_ID_OFFSET))
 	    goto err_context_heap;
 
-	if (object_heap_init(&rk_data->surface_heap, 
+	if (object_heap_init(&rk_data->surface_heap,
 		sizeof(struct object_surface), SURFACE_ID_OFFSET))
 	    goto err_surface_heap;
 
-	if (object_heap_init(&rk_data->buffer_heap, 
+	if (object_heap_init(&rk_data->buffer_heap,
 		sizeof(struct object_buffer), BUFFER_ID_OFFSET))
 	    goto err_buffer_heap;
 
-	if (object_heap_init(&rk_data->image_heap, 
+	if (object_heap_init(&rk_data->image_heap,
 		sizeof(struct object_image), IMAGE_ID_OFFSET))
 	    goto err_image_heap;
 
@@ -1848,10 +1862,10 @@ rockchip_init(VADriverContextP ctx)
 
 	uint32_t i;
 
-	for (i = 0; i < ARRAY_ELEMS(rockchip_sub_ops); i++) 
+	for (i = 0; i < ARRAY_ELEMS(rockchip_sub_ops); i++)
 	{
 		if ((rockchip_sub_ops[i].display_type == 0 ||
-		rockchip_sub_ops[i].display_type == 
+		rockchip_sub_ops[i].display_type ==
 		(ctx->display_type & VA_DISPLAY_MAJOR_MASK)) &&
 		!rockchip_sub_ops[i].init(ctx))
 			break;
@@ -1869,7 +1883,7 @@ rockchip_init(VADriverContextP ctx)
 		i--;
 		for (; i >= 0; i--) {
 			if (rockchip_sub_ops[i].display_type == 0 ||
-			rockchip_sub_ops[i].display_type == 
+			rockchip_sub_ops[i].display_type ==
 			(ctx->display_type & VA_DISPLAY_MAJOR_MASK))
 			{
 				rockchip_sub_ops[i].terminate(ctx);
