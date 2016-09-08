@@ -31,4 +31,8 @@
 #cmakedefine DECODER_BACKEND_LIBVPU
 #cmakedefine ENCODER_BACKEND_LIBVPU
 
+#cmakedefine HAVE_VA_X11
+#cmakedefine HAVE_VA_EGL
+#cmakedefine HAVE_VA_DRM
+
 #endif
