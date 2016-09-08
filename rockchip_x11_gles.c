@@ -337,7 +337,9 @@ static VAStatus rockchip_x11_gles_display(
     short destx,
     short desty,
     unsigned short destw,
-    unsigned short desth)
+    unsigned short desth,
+    unsigned short sufacew,
+    unsigned short sufaceh)
 {
 	x11_private_t *x11_data = (x11_private_t *) private;
 
@@ -378,11 +380,11 @@ static VAStatus rockchip_x11_gles_display(
 	attrs[5] = fourcc;
 	attrs[7] = fd;
 	attrs[9] = 0;
-	attrs[11] = srcw;
+	attrs[11] = sufacew; // pitch
 
 	attrs[13] = fd;
-	attrs[15] = srcw * srch;
-	attrs[17] = srcw;
+	attrs[15] = sufacew * sufaceh; // offset
+	attrs[17] = sufacew; // pitch
 	attrs[19] = EGL_ITU_REC601_EXT;
 	attrs[21] = EGL_YUV_NARROW_RANGE_EXT;
 
@@ -483,7 +485,8 @@ VAStatus rockchip_x11_gles_PutSurface (
 	}
 
 	return rockchip_x11_gles_display(rk_data->x11_backend, obj_surface->fourcc,
-         obj_surface->dma_fd, srcx, srcy, srcw, srch, destx, desty, destw, desth);
+         obj_surface->dma_fd, srcx, srcy, srcw, srch, destx, desty, destw, desth,
+         obj_surface->width, obj_surface->height);
 }
 
 void rockchip_x11_gles_destory(VADriverContextP ctx)
