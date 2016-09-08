@@ -1,3 +1,42 @@
+libva-rockchip (0.13-1) testing; urgency=medium
+
+  [ Randy Li ]
+  * va: support serial terminate job
+  * va: add H264 ConstrainedBaseline Profile and fix JPEG node
+  * backend: v4l2: support VAProfileH264ConstrainedBaseline
+  * va: check max_resolution vaCreateContext() method
+  * backend: add max_resolution method for rk3288
+  * va: add skelton of vaPutSurface()
+  * va: add dma_fd field in object_surface
+  * v4l2: export the dma_fb for each planes
+  * v4l2: store the dma_fb in object_surface
+  * v4l2: add a function to find a available output buffer
+  * va: header: add fileds in object_buffer for exporting purpose
+  * va: adding export buffer related functions
+
+  [ ayaka ]
+  * v4l2: make the buffer operations generically and object for encoder
+
+  [ Randy Li ]
+  * backend: v4l2: use VA-API way to determine whether is a full frame
+  * image: remove unused variables
+
+  [ Jacob Chen ]
+  * display: add X11 render backend
+
+  [ ayaka ]
+  * va: use X11 GLES render backend for the X11 rendering
+
+  [ Randy Li ]
+  * display: register the cleanup function from X11 GLESv2 backend
+
+  [ ayaka ]
+  * build: add option to build the display backend
+
+  [ Randy Li ]
+
+ -- Randy Li <randy.li@rock-chips.com>  Thu, 08 Sep 2016 08:12:43 +0000
+
 libva-rockchip (0.12-1) testing; urgency=medium
 
   * va: add support for vaDeriverImage
