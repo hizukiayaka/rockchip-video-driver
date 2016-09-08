@@ -51,9 +51,8 @@ VAStatus rockchip_x11_gles_PutSurface (
     unsigned int flags /* PutSurface flags */
 );
 
-VAStatus rockchip_x11_gles_destory (
-    void *private
-);
+bool rockchip_x11_gles_init(VADriverContextP ctx);
+void rockchip_x11_gles_destory(VADriverContextP ctx);
 
 #ifdef __cplusplus
 }

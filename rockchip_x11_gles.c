@@ -486,12 +486,13 @@ VAStatus rockchip_x11_gles_PutSurface (
          obj_surface->dma_fd, srcx, srcy, srcw, srch, destx, desty, destw, desth);
 }
 
-VAStatus rockchip_x11_gles_destory(void *private)
+void rockchip_x11_gles_destory(VADriverContextP ctx)
 {
-	x11_private_t *x11_data = (x11_private_t *) private;
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	x11_private_t *x11_data = (x11_private_t *) rk_data->x11_backend;
 
 	if (!x11_data)
-		return VA_STATUS_ERROR_INVALID_PARAMETER;
+		return;
 
 	gl_delete_shader(&x11_data->oes);
 
@@ -501,5 +502,10 @@ VAStatus rockchip_x11_gles_destory(void *private)
 	eglTerminate(x11_data->display);
 
 	free(x11_data);
-	return VA_STATUS_SUCCESS;
+}
+
+bool rockchip_x11_gles_init(VADriverContextP ctx)
+{
+	/* fake function here */
+	return true;
 }

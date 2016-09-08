@@ -1845,6 +1845,13 @@ struct {
 		rockchip_driver_data_terminate,
 		0,
 	},
+#ifdef HAVE_VA_X11
+	{
+		rockchip_x11_gles_init,
+		rockchip_x11_gles_destory,
+		VA_DISPLAY_X11,
+	},
+#endif
 };
 
 static VAStatus
