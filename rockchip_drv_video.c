@@ -1613,41 +1613,43 @@ static VAStatus rockchip_UnlockSurface(
     return VA_STATUS_ERROR_UNIMPLEMENTED;
 }
 
-static VAStatus rockchip_Terminate( VADriverContextP ctx )
+static void rockchip_driver_data_terminate(VADriverContextP ctx)
 {
     struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
-    object_buffer_p obj_buffer;
-    object_config_p obj_config;
+    struct object_buffer *obj_buffer;
+    struct object_config *obj_config;
     object_heap_iterator iter;
 
     /* Clean up left over buffers */
-    obj_buffer = (object_buffer_p) object_heap_first(&rk_data->buffer_heap, &iter);
+    obj_buffer = (struct object_buffer *)
+	    object_heap_first(&rk_data->buffer_heap, &iter);
     while (obj_buffer)
     {
         rk_info_msg("vaTerminate: bufferID %08x still allocated, destroying\n", 
 		obj_buffer->base.id);
         rockchip_destroy_buffer(rk_data, obj_buffer);
-        obj_buffer = (object_buffer_p) object_heap_next( &rk_data->buffer_heap, &iter);
+        obj_buffer = (object_buffer_p) object_heap_next
+		(&rk_data->buffer_heap, &iter);
     }
-    object_heap_destroy( &rk_data->buffer_heap );
+    object_heap_destroy(&rk_data->buffer_heap);
 
     /* TODO cleanup */
-    object_heap_destroy( &rk_data->surface_heap );
+    object_heap_destroy(&rk_data->surface_heap);
 
     /* TODO cleanup */
-    object_heap_destroy( &rk_data->context_heap );
+    object_heap_destroy(&rk_data->context_heap);
 
     /* Clean up configIDs */
-    obj_config = (object_config_p) object_heap_first( &rk_data->config_heap, &iter);
+    obj_config = (struct object_config *)
+	    object_heap_first(&rk_data->config_heap, &iter);
     while (obj_config)
     {
-        object_heap_free( &rk_data->config_heap, (object_base_p) obj_config);
-        obj_config = (object_config_p) object_heap_next( &rk_data->config_heap, &iter);
+        object_heap_free
+		(&rk_data->config_heap, (struct object_base *)obj_config);
+        obj_config = (struct object_config *)
+		object_heap_next(&rk_data->config_heap, &iter);
     }
-    object_heap_destroy( &rk_data->config_heap );
-
-    free(ctx->pDriverData);
-    ctx->pDriverData = NULL;
+    object_heap_destroy(&rk_data->config_heap);
 
     return VA_STATUS_SUCCESS;
 }
@@ -1705,7 +1707,7 @@ struct {
 } rockchip_sub_ops[] = {
 	{
 		rockchip_driver_data_init,
-		rockchip_Terminate,
+		rockchip_driver_data_terminate,
 		0,
 	},
 };
@@ -1750,6 +1752,27 @@ rockchip_init(VADriverContextP ctx)
 	}
 }
 
+static VAStatus rockchip_terminate(VADriverContextP ctx)
+{
+    struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+
+    if (rk_data) {
+		for (uint32_t i = ARRAY_ELEMS(rockchip_sub_ops); i > 0; i--) 
+		{
+			if (rockchip_sub_ops[i -1].display_type == 0 
+				|| rockchip_sub_ops[i].display_type 
+				== (ctx->display_type & VA_DISPLAY_MAJOR_MASK))
+			{
+				rockchip_sub_ops[i].terminate(ctx);
+			}
+
+		}
+		free(rk_data);
+		ctx->pDriverData = NULL;
+    }
+    return VA_STATUS_SUCCESS;
+}
+
 VAStatus VA_DRIVER_INIT_FUNC(  VADriverContextP ctx )
 {
     struct VADriverVTable * const vtable = ctx->vtable;
@@ -1765,7 +1788,7 @@ VAStatus VA_DRIVER_INIT_FUNC(  VADriverContextP ctx )
     ctx->max_subpic_formats = ROCKCHIP_MAX_SUBPIC_FORMATS;
     ctx->max_display_attributes = ROCKCHIP_MAX_DISPLAY_ATTRIBUTES;
 
-    vtable->vaTerminate = rockchip_Terminate;
+    vtable->vaTerminate = rockchip_terminate;
     vtable->vaQueryConfigEntrypoints = rockchip_QueryConfigEntrypoints;
     vtable->vaQueryConfigProfiles = rockchip_QueryConfigProfiles;
     vtable->vaQueryConfigAttributes = rockchip_QueryConfigAttributes;
