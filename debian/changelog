@@ -1,3 +1,10 @@
+libva-rockchip (0.13-2) testing; urgency=medium
+
+  [ 陈豪 | Jacob Chen ]
+  * x11: fix unalign display
+
+ -- Randy Li <randy.li@rock-chips.com>  Sat, 10 Sep 2016 07:10:57 +0000
+
 libva-rockchip (0.13-1) testing; urgency=medium
 
   [ Randy Li ]
