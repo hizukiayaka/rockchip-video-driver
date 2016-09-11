@@ -49,6 +49,8 @@
 #ifndef __LINUX_V4L2_CONTROLS_H
 #define __LINUX_V4L2_CONTROLS_H
 
+#include <linux/types.h>
+
 /* Control classes */
 #define V4L2_CTRL_CLASS_USER		0x00980000	/* Old-style 'user' controls */
 #define V4L2_CTRL_CLASS_MPEG		0x00990000	/* MPEG-compression controls */
@@ -388,6 +390,7 @@ enum v4l2_mpeg_video_multi_slice_mode {
 #define V4L2_CID_MPEG_VIDEO_REPEAT_SEQ_HEADER		(V4L2_CID_MPEG_BASE+226)
 #define V4L2_CID_MPEG_VIDEO_MV_H_SEARCH_RANGE		(V4L2_CID_MPEG_BASE+227)
 #define V4L2_CID_MPEG_VIDEO_MV_V_SEARCH_RANGE		(V4L2_CID_MPEG_BASE+228)
+#define V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME		(V4L2_CID_MPEG_BASE+229)
 
 #define V4L2_CID_MPEG_VIDEO_H263_I_FRAME_QP		(V4L2_CID_MPEG_BASE+300)
 #define V4L2_CID_MPEG_VIDEO_H263_P_FRAME_QP		(V4L2_CID_MPEG_BASE+301)
@@ -583,7 +586,6 @@ enum v4l2_vp8_golden_frame_sel {
 #define V4L2_CID_MPEG_VIDEO_VPX_PROFILE			(V4L2_CID_MPEG_BASE+511)
 
 #define V4L2_CID_MPEG_VIDEO_VP8_FRAME_HDR		(V4L2_CID_MPEG_BASE+512)
-#define V4L2_CID_MPEG_VIDEO_VP9_DECODE_PARAM		(V4L2_CID_MPEG_BASE+513)
 
 /*  MPEG-class control IDs specific to the CX2341x driver as defined by V4L2 */
 #define V4L2_CID_MPEG_CX2341X_BASE 				(V4L2_CTRL_CLASS_MPEG | 0x1000)
@@ -870,6 +872,7 @@ enum v4l2_jpeg_chroma_subsampling {
 #define	V4L2_CID_JPEG_COMPRESSION_QUALITY	(V4L2_CID_JPEG_CLASS_BASE + 3)
 
 #define	V4L2_CID_JPEG_ACTIVE_MARKER		(V4L2_CID_JPEG_CLASS_BASE + 4)
+#define	V4L2_CID_JPEG_QMATRIX			(V4L2_CID_JPEG_CLASS_BASE + 5)
 #define	V4L2_JPEG_ACTIVE_MARKER_APP0		(1 << 0)
 #define	V4L2_JPEG_ACTIVE_MARKER_APP1		(1 << 1)
 #define	V4L2_JPEG_ACTIVE_MARKER_COM		(1 << 16)
@@ -1211,188 +1214,10 @@ struct v4l2_ctrl_vp8_frame_hdr {
 	__u8 flags;
 };
 
-#define V4L2_VP9_SEGMENTATION_FLAG_ENABLED		0x01
-#define V4L2_VP9_SEGMENTATION_FLAG_UPDATE_MAP		0x02
-#define V4L2_VP9_SEGMENTATION_FLAG_ABS_DELTA		0x04
-
-struct v4l2_vp9_sgmnt_hdr {
-	__u16 tree_probs[7];
-	__u16 pred_probs[3];
-	__s16 feature_data[8][4];
-	__u16 feature_mask[8];
-	__u8 flags;
+struct v4l2_ctrl_jpeg_qmatrix {
+	__s32 load_lum_quantiser_matrix;
+	__s32 load_chroma_quantiser_matrix;
+	__u8 lum_quantiser_matrix [64];
+	__u8 chroma_quantiser_matrix [64];
 };
-
-struct v4l2_vp9_entropy_hdr {
-	__u8 y_mode[4][9];
-	__u8 uv_mode[10][9];
-	__u8 filter[4][2];
-	__u8 mv_mode[7][3];
-	__u8 intra[4];
-	__u8 comp[5];
-	__u8 single_ref[5][2];
-	__u8 comp_ref[5];
-	__u8 tx32p[2][3];
-	__u8 tx16p[2][2];
-	__u8 tx8p[2];
-	__u8 skip[3];
-	__u8 mv_joint[3];
-	struct {
-		__u8 sign;
-		__u8 classes[10];
-		__u8 class0;
-		__u8 bits[10];
-		__u8 class0_fp[2][3];
-		__u8 fp[3];
-		__u8 class0_hp;
-		__u8 hp;
-	} mv_comp[2];
-	__u8 partition[4][4][3];
-	__u8 coef[4][2][2][6][6][11];
-};
-
-#define V4L2_VP9_FRAME_HDR_FLAG_SHOW_FRAME		0x01
-#define V4L2_VP9_FRAME_HDR_FLAG_INTRA_MB_ONLY		0x02
-#define V4L2_VP9_FRAME_HDR_FLAG_ERROR_RESILIENT_MODE	0x04
-
-struct v4l2_ctrl_vp9_decode_param {
-	/* 0: keyframe, 1: not a keyframe */
-	__u8 key_frame;
-
-	__u8 bit_depth_luma_minus8;
-	__u8 bit_depth_chroma_minus8;
-	__u32 ref_frame_coded_width[8];
-	__u32 ref_frame_coded_height[8];
-	__s8 ref_deltas[4];
-	__s8 mode_deltas[2];
-	__u16 first_partition_size;
-
-	__u16 mvscale[3][2];
-	__s8 txmode;
-	__s8 refmode;
-
-	struct v4l2_vp9_sgmnt_hdr sgmnt_hdr;
-	struct v4l2_vp9_entropy_hdr entropy_hdr;
-
-	/* v4l2_buffer indices of reference frames */
-	__u32 last_frame;
-	__u32 golden_frame;
-	__u32 alt_frame;
-
-	__u8 flags;
-};
-
-#define REF_TYPES	2	/* intra=0, inter=1 */
-#define TX_SIZES	4	/*
-				4x4 transform
-				8x8 transform
-				16x16 transform
-				32x32 transform*/
-#define PLANE_TYPES	2	/* Y UV */
-/* Middle dimension reflects the coefficient position within the transform. */
-#define COEF_BANDS	6
-#define COEFF_CONTEXTS	6
-
-/*PARTITION_NONE,
-  PARTITION_HORZ,
-  PARTITION_VERT,
-  PARTITION_SPLIT*/
-#define PARTITION_TYPES		4
-#define SKIP_CONTEXTS		3
-#define INTRA_INTER_CONTEXTS	4
-#define TX_SIZE_CONTEXTS	2
-#define BLOCK_SIZE_GROUPS	4
-/*
-DC_PRED
-V_PRED
-H_PRED
-D45_PRED,        // Directional 45  deg = round(arctan(1/1) * 180/pi)
-D135_PRED,       // Directional 135 deg = 180 - 45
-D117_PRED,       // Directional 117 deg = 180 - 63
-D153_PRED,       // Directional 153 deg = 180 - 27
-D207_PRED,       // Directional 207 deg = 180 + 27
-D63_PRED,        // Directional 63  deg = round(arctan(2/1) * 180/pi)
-TM_PRED,         // True-motion
-*/
-#define INTRA_MODES		10
-#define COMP_INTER_CONTEXTS	5
-#define REF_CONTEXTS		5
-#define INTER_MODE_CONTEXTS	7
-
-/*
-NEARESTMV,
-NEARMV,
-ZEROMV,
-NEWMV,
-*/
-#define INTER_MODES			4
-#define SWITCHABLE_FILTER_CONTEXTS	4
-#define SWITCHABLE_FILTERS		3
-/* Symbols for coding which components are zero jointly */
-#define MV_JOINTS			4
-#define MV_CLASSES			11
-#define CLASS0_SIZE			2
-#define MV_OFFSET_BITS			10
-#define MV_FP_SIZE			4
-
-/* count output if inter frame being decoded */
-struct v4l2_ctrl_vp9_decode_counts_inter {
-	/* partitioning count
-	[block type index][split type index][PARTITION_TYPES index]
-
-	block type index 0: 8x8 -> 4x4,
-	block type index 1: 16x16 -> 8x8,
-	block type index 2: 32x32 -> 16x16,
-	block type index 3: 64x64 -> 32x32,
-
-	split type index 0: a/l both not split,
-	split type index 1: a split, l not split,
-	split type index 2: l split, a not split,
-	split type index 3: a/l both split*/
-	__u32 partition[4][4][PARTITION_TYPES];
-	__u32 skip[SKIP_CONTEXTS][2];
-	__u32 inter[4][2];
-	__u32 tx32p[TX_SIZE_CONTEXTS][TX_SIZES];
-	/* tx16p counts contain 2x3 elements, only 3 TX_SIZES
-	tx16p[0][3] and tx16p[1][3] no meaning, only use for memory align */
-	__u32 tx16p[TX_SIZE_CONTEXTS][TX_SIZES - 1 + 1];
-	__u32 tx8p[TX_SIZE_CONTEXTS][TX_SIZES - 2];
-	__u32 y_mode[BLOCK_SIZE_GROUPS][INTRA_MODES];
-	__u32 uv_mode[INTRA_MODES][INTRA_MODES];
-	__u32 comp[COMP_INTER_CONTEXTS][2];
-	__u32 comp_ref[REF_CONTEXTS][2];
-	__u32 single_ref[REF_CONTEXTS][2][2];
-	__u32 mv_mode[INTER_MODE_CONTEXTS][INTER_MODES];
-	__u32 filter[SWITCHABLE_FILTER_CONTEXTS][SWITCHABLE_FILTERS];
-	__u32 mv_joint[MV_JOINTS];
-	__u32 sign[2][2];
-	/* add 1 element for align */
-	__u32 classes[2][MV_CLASSES + 1];
-	__u32 class0[2][CLASS0_SIZE];
-	__u32 bits[2][MV_OFFSET_BITS][2];
-	__u32 class0_fp[2][CLASS0_SIZE][MV_FP_SIZE];
-	__u32 fp[2][4];
-	__u32 class0_hp[2][2];
-	__u32 hp[2][2];
-
-	struct {
-		__u32 eob[2];
-		__u32 coeff[3];
-	} refs_counts[REF_TYPES][TX_SIZES][PLANE_TYPES][COEF_BANDS][COEFF_CONTEXTS];
-};
-
-/* counts output if intra frame being decoded */
-struct v4l2_ctrl_vp9_decode_counts_intra {
-	__u32 partition[4][4][PARTITION_TYPES];
-	__u32 skip[SKIP_CONTEXTS][2];
-	__u32 intra[4][2];
-	__u32 tx32p[TX_SIZE_CONTEXTS][TX_SIZES];
-	__u32 tx16p[TX_SIZE_CONTEXTS][TX_SIZES - 1 + 1];
-	__u32 tx8p[TX_SIZE_CONTEXTS][TX_SIZES - 2];
-	struct {
-		__u32 eob[2];
-		__u32 coeff[3];
-	} refs_counts[REF_TYPES][TX_SIZES][PLANE_TYPES][COEF_BANDS][COEFF_CONTEXTS];
-};
-
 #endif
