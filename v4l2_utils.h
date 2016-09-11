@@ -68,7 +68,7 @@ struct rk_v4l2_buffer *rk_v4l2_get_input_buffer(struct rk_v4l2_object *ctx);
 struct rk_v4l2_buffer *rk_v4l2_get_output_buffer(struct rk_v4l2_object *ctx);
 
 bool rk_v4l2_streamon_all(struct rk_v4l2_object *ctx);
-struct rk_v4l2_object *rk_v4l2_dec_create(int8_t *vpu_path);
-struct rk_v4l2_object *rk_v4l2_enc_create(int8_t *vpu_path);
+struct rk_v4l2_object *rk_v4l2_dec_create(char *vpu_path);
+struct rk_v4l2_object *rk_v4l2_enc_create(char *vpu_path);
 void rk_v4l2_destroy(struct rk_v4l2_object *ctx);
 #endif

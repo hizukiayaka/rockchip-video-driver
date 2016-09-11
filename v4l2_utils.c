@@ -496,13 +496,13 @@ bool rk_v4l2_streamon_all(struct rk_v4l2_object *ctx)
 	return true;
 };
 
-static int8_t *rk_vpu_dec_list[] = {
+static const char *rk_vpu_dec_list[] = {
 	"rockchip-vpu-vdec",	
 	"rockchip-vpu-dec",
 	"rk3288-vpu-dec",
 };
 
-struct rk_v4l2_object *rk_v4l2_dec_create(int8_t *vpu_path)
+struct rk_v4l2_object *rk_v4l2_dec_create(char *vpu_path)
 {
 	struct rk_v4l2_object *ctx;
 
@@ -514,7 +514,7 @@ struct rk_v4l2_object *rk_v4l2_dec_create(int8_t *vpu_path)
 
 	if (NULL != vpu_path)
 	{
-		if (!rk_v4l2_open(ctx, vpu_path))
+		if (!rk_v4l2_open(ctx, (const char *)vpu_path))
 			goto create_ctx_err;
 	}
 	else 
@@ -545,13 +545,13 @@ create_ctx_err:
 	return NULL;
 }
 
-static int8_t *rk_vpu_enc_list[] = {
+static const char *rk_vpu_enc_list[] = {
 	"rockchip-vpu-venc",	
 	"rockchip-vpu-enc",
 	"rk3288-vpu-enc",
 };
 
-struct rk_v4l2_object *rk_v4l2_enc_create(int8_t *vpu_path)
+struct rk_v4l2_object *rk_v4l2_enc_create(char *vpu_path)
 {
 	struct rk_v4l2_object *ctx;
 
@@ -563,7 +563,7 @@ struct rk_v4l2_object *rk_v4l2_enc_create(int8_t *vpu_path)
 
 	if (NULL != vpu_path)
 	{
-		if (!rk_v4l2_open(ctx, vpu_path))
+		if (!rk_v4l2_open(ctx, (const char *)vpu_path))
 			goto create_ctx_err;
 	}
 	else 
