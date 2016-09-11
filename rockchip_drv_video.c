@@ -359,6 +359,15 @@ rockchip_CreateConfig(
                 }
                 break;
 
+	case VAProfileJPEGBaseline:
+		if ((HAS_JPEG_DECODING(rk_data) && entrypoint == VAEntrypointVLD) ||
+			(HAS_JPEG_ENCODING(rk_data) && entrypoint == VAEntrypointEncPicture)) 
+		{
+                    vaStatus = VA_STATUS_SUCCESS;
+		} else {
+                    vaStatus = VA_STATUS_ERROR_UNSUPPORTED_ENTRYPOINT;
+		}
+		break;
         default:
                 vaStatus = VA_STATUS_ERROR_UNSUPPORTED_PROFILE;
                 break;
