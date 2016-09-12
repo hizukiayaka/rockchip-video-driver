@@ -32,13 +32,14 @@
 #include "rockchip_encoder_v4l2.h"
 
 struct hw_context *rk3288_dec_hw_context_init
-    (VADriverContextP ctx, struct object_config *obj_config) 
+    (VADriverContextP ctx, struct object_context *obj_context) 
 {
 
 	struct hw_context *hw_ctx = NULL;
 
 	hw_ctx = decoder_v4l2_create_context();
-	if (!decoder_rk_v4l2_init(hw_ctx, obj_config))
+	if (VA_STATUS_SUCCESS != 
+			decoder_rk_v4l2_init(ctx, obj_context, hw_ctx))
 	{
 		free(hw_ctx);
 		hw_ctx = NULL;
@@ -48,11 +49,13 @@ struct hw_context *rk3288_dec_hw_context_init
 }
 
 struct hw_context *rk3288_enc_hw_context_init
-    (VADriverContextP ctx, struct object_config *obj_config) {
+    (VADriverContextP ctx, struct object_context *obj_context) 
+{
 	struct hw_context *hw_ctx = NULL;
 
 	hw_ctx = encoder_v4l2_create_context();
-	if (!encoder_rk_v4l2_init(hw_ctx, obj_config))
+	if (VA_STATUS_SUCCESS != 
+			encoder_rk_v4l2_init(ctx, obj_context, hw_ctx))
 	{
 		free(hw_ctx);
 		hw_ctx = NULL;

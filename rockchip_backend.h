@@ -69,12 +69,11 @@ struct hw_context {
 
 struct hw_codec_info {
 	struct hw_context *(*dec_hw_context_init) (VADriverContextP,
-						   struct object_config *);
+						   struct object_context *);
 	struct hw_context *(*enc_hw_context_init) (VADriverContextP,
-						   struct object_config *);
+						   struct object_context *);
 	struct hw_context *(*proc_hw_context_init) (VADriverContextP,
-						    struct object_config
-						    *);
+						    struct object_context *);
 	bool (*render_init) (VADriverContextP);
 	void (*preinit_hw_codec) (VADriverContextP,
 				  struct hw_codec_info *);
@@ -124,10 +123,10 @@ struct hw_codec_info {
 };
 
 struct hw_context *rk3288_dec_hw_context_init
-(VADriverContextP ctx, struct object_config *obj_config);
+(VADriverContextP ctx, struct object_context *obj_context);
 
 struct hw_context *rk3288_enc_hw_context_init
-(VADriverContextP ctx, struct object_config *obj_config);
+(VADriverContextP ctx, struct object_context *obj_context);
 
 VAStatus
 rockchip_decoder_render_picture(VADriverContextP ctx, VAContextID context,
