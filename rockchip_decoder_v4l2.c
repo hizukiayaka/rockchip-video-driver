@@ -53,7 +53,7 @@ const static const RkV4L2FormatMap rk_v4l2_formats[] = {
 };
 
 static uint32_t
-get_v4l2_format(VAProfile profile)
+get_v4l2_codec(VAProfile profile)
 {
 	const RkV4L2FormatMap *m;
 	for (m = rk_v4l2_formats; m->va_profile; m++)
@@ -236,27 +236,8 @@ rk_dec_v4l2_avc_decode_picture
 	else
 		obj_surface->flags &= ~SURFACE_REFERENCED;
 
-	if (!video_ctx->input_streamon) {
-		int32_t ret = 0;
-
-		video_ctx->input_size.w = obj_surface->width;
-		video_ctx->input_size.h = obj_surface->height;
-		video_ctx->ops.set_format(video_ctx, 0);
-
-		video_ctx->ops.input_alloc(video_ctx, 1);
-		/* Keep Reference buffer */
-		ret = video_ctx->ops.output_alloc
-			(video_ctx, MAX_CAPTURE_BUFFERS);
-
-		ASSERT_RET(0 != ret, VA_STATUS_ERROR_ALLOCATION_FAILED);
-
-		/* There could be more common for stramon
-		 * Also why not qbuf first but not streamon */
+	if (!video_ctx->input_streamon)
 		rk_v4l2_streamon_all(video_ctx);
-		for (uint8_t i = 0; i < ret; i++)
-			video_ctx->ops.qbuf_output(video_ctx,
-					&video_ctx->output_buffer[i]);
-	}
 
 	for (int32_t i = 0; i < decode_state->num_slice_params; i++)
 	{
@@ -349,43 +330,70 @@ union codec_state *codec_state, struct hw_context *hw_context)
 	};
 }
 
-bool 
+VAStatus
 decoder_rk_v4l2_init
-(struct hw_context *hw_context, struct object_config *obj_config)
+(VADriverContextP ctx, struct object_context *obj_context,
+ struct hw_context *hw_context)
 {
+	struct rockchip_driver_data *rk_data = 
+		rockchip_driver_data(ctx);
+
 	struct rk_dec_v4l2_context *rk_v4l2_data =
 		(struct rk_dec_v4l2_context *)hw_context;
-	struct rk_v4l2_object *rk_v4l2_obj;
-	struct rk_v4l2_ops *ops;
+	struct rk_v4l2_object *video_ctx;
+	struct object_config *obj_config;
 
 	uint32_t v4l2_codec_type;
+	int32_t ret = 0;
 
-	if (NULL == hw_context || NULL == obj_config)
-	{
-		return false;
-	}
+	if (NULL == rk_data || NULL == obj_context || NULL == rk_v4l2_data)
+		return VA_STATUS_ERROR_INVALID_PARAMETER;
+
+	obj_config = CONFIG(obj_context->config_id);
+	ASSERT_RET(obj_config, VA_STATUS_ERROR_INVALID_CONFIG);
 	
 	rk_v4l2_data->profile = obj_config->profile;
-	v4l2_codec_type = get_v4l2_format(obj_config->profile);
-	if (!v4l2_codec_type)
-		return false;
-	/* Create RK V4L2 Object */
-	rk_v4l2_obj = rk_v4l2_dec_create(NULL);
-	if (NULL == rk_v4l2_obj)
-		return false;
 
-	ops = &rk_v4l2_obj->ops;
-	ops->set_codec(rk_v4l2_obj, V4L2_PIX_FMT_H264_SLICE);
-	
+	v4l2_codec_type = get_v4l2_codec(obj_config->profile);
+	if (!v4l2_codec_type)
+		return VA_STATUS_ERROR_UNSUPPORTED_PROFILE;
+
+	/* Create RK V4L2 Object */
+	video_ctx = rk_v4l2_dec_create(NULL);
+	if (NULL == video_ctx)
+		return VA_STATUS_ERROR_ALLOCATION_FAILED;
+
+	video_ctx->input_size.w = obj_context->picture_width;
+	video_ctx->input_size.h = obj_context->picture_height;
+
+	video_ctx->ops.set_codec(video_ctx, v4l2_codec_type);
+	video_ctx->ops.set_format(video_ctx, 0);
+
+	ret = video_ctx->ops.input_alloc(video_ctx, 1);
+	ASSERT_RET(0 != ret, VA_STATUS_ERROR_ALLOCATION_FAILED);
+
+	/* Keep Reference buffer */
+	ret = video_ctx->ops.output_alloc
+		(video_ctx, MAX_CAPTURE_BUFFERS);
+	ASSERT_RET(0 != ret, VA_STATUS_ERROR_ALLOCATION_FAILED);
+
+	/* There could be more common for stramon
+	 * Also why not qbuf first but not streamon */
+	for (uint8_t i = 0; i < ret; i++)
+		video_ctx->ops.qbuf_output(video_ctx,
+				&video_ctx->output_buffer[i]);
+
 	rk_v4l2_data->wrapper_pdrvctx = h264d_init();
 	if (NULL == rk_v4l2_data->wrapper_pdrvctx) {
 		rk_error_msg("vpu backend request wrapper failed\n");
-		rk_v4l2_destroy(rk_v4l2_obj);
+		rk_v4l2_destroy(video_ctx);
+
+		return VA_STATUS_ERROR_OPERATION_FAILED;
 	}
 
-	rk_v4l2_data->v4l2_ctx = rk_v4l2_obj;
+	rk_v4l2_data->v4l2_ctx = video_ctx;
 
-	return true;
+	return VA_STATUS_SUCCESS;
 }
 
 static void

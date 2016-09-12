@@ -39,6 +39,8 @@ struct rk_dec_v4l2_context {
 
 struct hw_context *decoder_v4l2_create_context();
 
-bool decoder_rk_v4l2_init
-(struct hw_context *hw_context, struct object_config *obj_config);
+VAStatus decoder_rk_v4l2_init
+(VADriverContextP ctx, struct object_context *obj_context, 
+ struct hw_context *hw_context);
+
 #endif
