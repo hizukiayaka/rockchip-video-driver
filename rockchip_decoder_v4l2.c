@@ -77,7 +77,7 @@ rk_dec_release(struct rk_dec_v4l2_context *ctx)
 	}while(index >= 0);
 }
 
-static int32_t
+static struct rk_v4l2_buffer *
 rk_dec_procsss_avc_object
 (struct rk_dec_v4l2_context *ctx,
  VAPictureParameterBufferH264 *pic_param, 
@@ -89,7 +89,6 @@ rk_dec_procsss_avc_object
 	uint32_t num_ctrls;
 	uint32_t ctrl_ids[5];
 	uint32_t payload_sizes[5];
-	int32_t buffer_index = -1;
 	struct v4l2_ctrl_h264_sps *sps;
 	struct v4l2_ctrl_h264_pps *pps;
 	struct v4l2_ext_controls ext_ctrls;
@@ -102,7 +101,7 @@ rk_dec_procsss_avc_object
 	inbuf = rk_v4l2_get_input_buffer(ctx->v4l2_ctx);
 	/* Not get validate buffer */
 	if (NULL == inbuf)
-		return -1;
+		return NULL;
 	/* FIXME overflow risk here */
 	ptr = inbuf->plane[0].data + inbuf->plane[0].bytesused;
 	nal_ptr = slice_data + slice_param->slice_data_offset;
@@ -136,7 +135,7 @@ rk_dec_procsss_avc_object
 	}
 #else
 	if (NULL != next_slice_param)
-		return -1;
+		NULL;
 #endif
 
 	sps = (struct v4l2_ctrl_h264_sps *)payloads[0];
@@ -189,12 +188,11 @@ rk_dec_procsss_avc_object
 		 * buffer in capture then this function would release
 		 * it and enqueue the CAPTURE */
 		rk_dec_release(ctx);
-		buffer_index = outbuf->index;
 	}
 	/* release the input buffer */
 	ctx->v4l2_ctx->ops.dqbuf_input(ctx->v4l2_ctx, &inbuf);
 
-	return buffer_index;
+	return outbuf;
 }
 
 #define MAX_CAPTURE_BUFFERS   22
@@ -209,6 +207,7 @@ rk_dec_v4l2_avc_decode_picture
 	struct rk_dec_v4l2_context *rk_v4l2_data =
 		(struct rk_dec_v4l2_context *)hw_context;
 	struct rk_v4l2_object *video_ctx = rk_v4l2_data->v4l2_ctx;
+	struct rk_v4l2_buffer *outbuf;
 	struct decode_state *decode_state = &codec_state->decode;
 
 	uint8_t *slice_data;
@@ -268,7 +267,6 @@ rk_dec_v4l2_avc_decode_picture
 		for (int32_t j = 0; 
 			j < decode_state->slice_params[i]->num_elements; j++)
 		{
-			int32_t ret = 0;
 			/* 
 			 * check whether the buffer is big enough to hold the 
 			 * whole slice, we only support process a the completely
@@ -288,17 +286,15 @@ rk_dec_v4l2_avc_decode_picture
 			else
 				next_slice_param = next_slice_group_param;
 			/* Hardware job begin here */
-			ret = rk_dec_procsss_avc_object(rk_v4l2_data, pic_param,
+			outbuf = rk_dec_procsss_avc_object(rk_v4l2_data, pic_param,
 					slice_param, next_slice_param, 
 					slice_data);
 			/* Get validate frame */
-			if (ret >= 0)
+			if (outbuf)
 			{
-				/* FIXME not work for multi-planes */
-				obj_surface->buffer = 
-				video_ctx->output_buffer[ret].plane[0].data;
-				obj_surface->dma_fd =
-				video_ctx->output_buffer[ret].plane[0].dma_fd;
+				obj_surface->bo = outbuf;
+				obj_surface->size =
+					rk_v4l2_buffer_total_bytesused(outbuf);
 			}
 
 			/* Hardware job end here */
