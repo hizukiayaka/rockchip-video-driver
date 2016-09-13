@@ -555,3 +555,66 @@ VABufferID * buffers, int num_buffers)
 
 	return vaStatus;
 }
+
+VAStatus
+rk_v4l2_assign_surface_bo(VADriverContextP ctx,
+	struct object_surface *obj_surface)
+{
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	struct object_context *obj_context = NULL;
+	struct rk_v4l2_buffer *buffer;
+
+	if (NULL == obj_surface || NULL == ctx)
+		return VA_STATUS_ERROR_INVALID_PARAMETER;
+
+	obj_context = CONTEXT(rk_data->current_context_id);
+
+	if (NULL == obj_context)
+		return VA_STATUS_ERROR_INVALID_CONTEXT;
+
+	switch (obj_context->codec_type) {
+	case CODEC_ENC:
+	{
+		struct rk_enc_v4l2_context *video_ctx =
+			(struct rk_enc_v4l2_context*)obj_context->hw_context;
+
+		buffer = rk_v4l2_get_input_buffer(video_ctx->v4l2_ctx);
+		if (NULL == buffer)
+			return VA_STATUS_ERROR_OPERATION_FAILED;
+
+		obj_surface->bo = buffer;
+		for (uint32_t i = 0; i < buffer->length; i++) {
+			obj_surface->size += buffer->plane[i].length;
+		}
+		return VA_STATUS_SUCCESS;
+	}
+	break;
+	case CODEC_DEC:
+	{
+	/*
+	 * If the surface is not assigned a v4l2 buffer object in
+	 * Rockchip_EndPicture(), it means no result for it.
+	 */
+#if 0
+		struct rk_dec_v4l2_context *video_ctx =
+			(struct rk_dec_v4l2_context*)obj_context->hw_context;
+
+		buffer = rk_v4l2_get_output_buffer(video_ctx->v4l2_ctx);
+		if (NULL == buffer)
+			return VA_STATUS_ERROR_OPERATION_FAILED;
+
+		obj_surface->bo = buffer;
+		/* Zero can't pass the detect of gstreamer */
+		for (uint32_t i = 0; i < buffer->length; i++) {
+			obj_surface->size += buffer->plane[i].length;
+		}
+#endif
+	}
+	break;
+	default:
+		return VA_STATUS_ERROR_UNIMPLEMENTED;
+		break;
+	}
+}
+
+

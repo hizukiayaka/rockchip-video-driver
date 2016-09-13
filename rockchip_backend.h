@@ -136,5 +136,8 @@ VAStatus
 rockchip_encoder_render_picture(VADriverContextP ctx, VAContextID context,
 VABufferID * buffers, int num_buffers);
 
+VAStatus
+rk_v4l2_assign_surface_bo(VADriverContextP ctx,
+struct object_surface *obj_surface);
 
 #endif
