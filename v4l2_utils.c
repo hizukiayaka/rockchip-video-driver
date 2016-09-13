@@ -62,7 +62,7 @@ rk_v4l2_open_by_name(struct rk_v4l2_object *ctx, const char *name)
 	return ret;
 }
 
-static void rk_v4l2_dec_input_release(struct rk_v4l2_object *ctx)
+static void rk_v4l2_input_release(struct rk_v4l2_object *ctx)
 {
 	struct v4l2_requestbuffers breq = { 0, 
 		V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, V4L2_MEMORY_MMAP };
@@ -70,7 +70,7 @@ static void rk_v4l2_dec_input_release(struct rk_v4l2_object *ctx)
 	ioctl(ctx->video_fd, VIDIOC_REQBUFS, &breq);
 }
 
-static void rk_v4l2_dec_output_release(struct rk_v4l2_object *ctx)
+static void rk_v4l2_output_release(struct rk_v4l2_object *ctx)
 {
 	struct v4l2_requestbuffers breq = { 0, 
 		V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, V4L2_MEMORY_MMAP };
@@ -89,7 +89,7 @@ static int32_t rk_v4l2_input_allocate
 	struct v4l2_format *format = &ctx->input_format;
 	struct v4l2_plane planes[RK_VIDEO_MAX_PLANES];
 
-	rk_v4l2_dec_input_release(ctx);
+	rk_v4l2_input_release(ctx);
 
 	if (ioctl(ctx->video_fd, VIDIOC_REQBUFS, &breq) < 0) {
 		rk_info_msg("Allocate failed");
@@ -105,7 +105,7 @@ static int32_t rk_v4l2_input_allocate
 	if (NULL == ctx->input_buffer)
 	{
 		rk_error_msg("Failed to allocate space for input buffer meta data\n");
-		rk_v4l2_dec_input_release(ctx);
+		rk_v4l2_input_release(ctx);
 		return 0;
 	}
 	ctx->num_input_buffers = breq.count;
@@ -159,6 +159,7 @@ static int32_t rk_v4l2_input_allocate
 		}
 		ctx->input_buffer[i].state = BUFFER_FREE;
 		ctx->input_buffer[i].index = i;
+		ctx->input_buffer[i].length = format->fmt.pix_mp.num_planes;
 
 	}
 	ctx->has_free_input_buffers = breq.count;
@@ -178,6 +179,8 @@ static int32_t rk_v4l2_output_allocate
 	struct v4l2_plane planes[RK_VIDEO_MAX_PLANES];
 	int32_t ret;
 
+	rk_v4l2_output_release(ctx);
+
 	ret = ioctl(ctx->video_fd, VIDIOC_REQBUFS, &breq);
 	if (ret < 0) {
 		rk_info_msg("Allocate failed");
@@ -193,7 +196,7 @@ static int32_t rk_v4l2_output_allocate
 	if (NULL == ctx->output_buffer)
 	{
 		rk_error_msg("Failed to allocate space for input buffer meta data\n");
-		rk_v4l2_dec_output_release(ctx);
+		rk_v4l2_output_release(ctx);
 		return 0;
 	}
 
@@ -249,6 +252,7 @@ static int32_t rk_v4l2_output_allocate
 		}
 		ctx->output_buffer[i].state = BUFFER_FREE;
 		ctx->output_buffer[i].index = i;
+		ctx->output_buffer[i].length = format->fmt.pix_mp.num_planes;
 	}
 	ctx->has_free_output_buffers = breq.count;
 
@@ -273,6 +277,18 @@ rk_v4l2_get_output_buffer(struct rk_v4l2_object *ctx)
 			return &ctx->output_buffer[i];
 	}
 	return NULL;
+}
+
+int32_t
+rk_v4l2_buffer_total_bytesused(struct rk_v4l2_buffer *buffer)
+{
+	uint32_t ret = 0;
+
+	for (uint32_t i = 0; i < buffer->length; i++) {
+		ret += buffer->plane[i].bytesused;
+	}
+
+	return ret;
 }
 
 static int32_t rk_v4l2_qbuf_input

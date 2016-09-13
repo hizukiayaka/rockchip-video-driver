@@ -54,4 +54,6 @@ bool rk_v4l2_streamon_all(struct rk_v4l2_object *ctx);
 struct rk_v4l2_object *rk_v4l2_dec_create(char *vpu_path);
 struct rk_v4l2_object *rk_v4l2_enc_create(char *vpu_path);
 void rk_v4l2_destroy(struct rk_v4l2_object *ctx);
+
+int32_t rk_v4l2_buffer_total_bytesused(struct rk_v4l2_buffer *buffer);
 #endif
