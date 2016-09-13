@@ -30,6 +30,7 @@
 
 struct buffer_store {
 	uint8_t *buffer;
+	struct rk_v4l2_buffer *bo;
 	int32_t ref_count;
 	int32_t num_elements;
 };

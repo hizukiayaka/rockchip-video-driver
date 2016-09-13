@@ -44,11 +44,14 @@ void rockchip_release_buffer_store(struct buffer_store **ptr)
 	if (NULL == buffer_store)
 		return;
 
-	assert(buffer_store->buffer);
+	assert(buffer_store->bo || buffer_store->buffer);
 	buffer_store->ref_count--;
 
 	if (0 == buffer_store->ref_count) {
+		v4l2_bo_unreference(buffer_store->bo);
+		free(buffer_store->buffer);
 		buffer_store->buffer = NULL;
+		buffer_store->bo = NULL;
 		free(buffer_store);
 	}
 
@@ -81,22 +84,20 @@ void *data, VABufferID * buf_id)
 	case VAMacroblockParameterBufferType:
 	case VAResidualDataBufferType:
 	case VADeblockingParameterBufferType:
-#if 0
-/* Not supported yet */
+	case VAHuffmanTableBufferType:
+	case VAProbabilityBufferType:
 	/* Encoder */
 	case VAEncCodedBufferType:
 	case VAEncSequenceParameterBufferType:
+	case VAEncSliceParameterBufferType:
 	case VAEncPictureParameterBufferType:
 	case VAEncPackedHeaderParameterBufferType:
 	case VAEncPackedHeaderDataBufferType:
 	case VAEncMiscParameterBufferType:
 	case VAEncMacroblockMapBufferType:
-	/* Don't know */
+	/* Postprocessing */
 	case VAProcPipelineParameterBufferType:
 	case VAProcFilterParameterBufferType:
-	case VAHuffmanTableBufferType:
-	case VAProbabilityBufferType:
-#endif
 		/* Ok */
 		break;
 	default:
@@ -114,7 +115,6 @@ void *data, VABufferID * buf_id)
 	obj_buffer->size_element = size;
 	obj_buffer->type = type;
 	obj_buffer->buffer_store = NULL;
-	obj_buffer->dma_fd = -1;
 	obj_buffer->export_refcount = 0;
 	obj_buffer->context_id = context;
 
@@ -145,7 +145,7 @@ void *data, VABufferID * buf_id)
 
 VAStatus 
 rockchip_allocate_refernce(VADriverContextP ctx, VABufferType type,  
-VABufferID *buf_id, void *data, unsigned int size)
+VABufferID *buf_id, struct rk_v4l2_buffer *bo, unsigned int size)
 {
 	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
 	VAStatus vaStatus = VA_STATUS_ERROR_UNKNOWN;
@@ -157,6 +157,8 @@ VABufferID *buf_id, void *data, unsigned int size)
 	switch (type) {
 	/* Raw Image */
 	case VAImageBufferType:
+	/* Encoded data */
+	case VASliceDataBufferType:
 		break;
 	default:
 		return VA_STATUS_ERROR_UNSUPPORTED_BUFFERTYPE;
@@ -173,18 +175,16 @@ VABufferID *buf_id, void *data, unsigned int size)
 	obj_buffer->size_element = size;
 	obj_buffer->type = type;
 	obj_buffer->buffer_store = NULL;
-	obj_buffer->dma_fd = -1;
 	obj_buffer->export_refcount = 0;
 	obj_buffer->context_id = VA_INVALID_ID;
 
 	buffer_store = calloc(1, sizeof(struct buffer_store));
 	assert(buffer_store);
 	buffer_store->ref_count = 1;
+	buffer_store->buffer = NULL;
 
-	if (data)
-		buffer_store->buffer = data;
-	else
-		buffer_store->buffer = NULL;
+	if (bo)
+		buffer_store->bo = bo;
 
 	buffer_store->num_elements = obj_buffer->num_elements;
 	rockchip_reference_buffer_store(&obj_buffer->buffer_store,

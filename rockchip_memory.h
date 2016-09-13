@@ -43,6 +43,6 @@ void *data, VABufferID * buf_id);
 
 VAStatus 
 rockchip_allocate_refernce(VADriverContextP ctx, VABufferType type,  
-VABufferID *buf_id, void *data, unsigned int size);
+VABufferID *buf_id, struct rk_v4l2_buffer *bo, unsigned int size);
 
 #endif

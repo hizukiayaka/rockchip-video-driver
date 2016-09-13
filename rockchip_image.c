@@ -33,7 +33,7 @@ get_image_i420_sw(struct object_image *obj_image, uint8_t * image_data,
 	/* Dest VA image has either I420 or YV12 format.
 	   Source VA surface alway has I420 format */
 	dst[Y] = image_data + obj_image->image.offsets[Y];
-	src[0] = (uint8_t *) obj_surface->buffer;
+	src[0] = (uint8_t *) obj_surface->bo->plane[0].data;
 	dst[U] = image_data + obj_image->image.offsets[U];
 	src[1] = src[0] + obj_surface->width * obj_surface->height;
 	dst[V] = image_data + obj_image->image.offsets[V];
@@ -79,7 +79,7 @@ get_image_nv12_sw(struct object_image *obj_image, uint8_t * image_data,
 
 	/* Both dest VA image and source surface have NV12 format */
 	dst[0] = image_data + obj_image->image.offsets[0];
-	src[0] = (uint8_t *) obj_surface->buffer;
+	src[0] = (uint8_t *) obj_surface->bo->plane[0].data;
 	dst[1] = image_data + obj_image->image.offsets[1];
 	src[1] = src[0] + obj_surface->width * obj_surface->height;
 

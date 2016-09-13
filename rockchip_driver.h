@@ -36,6 +36,7 @@
 #include "rockchip_buffer.h"
 #include "rockchip_codec_info.h"
 #include "rockchip_fourcc.h"
+#include "v4l2_memory.h"
 
 #define ROCKCHIP_MAX_PROFILES			18
 #define ROCKCHIP_MAX_ENTRYPOINTS		2
@@ -122,9 +123,8 @@ struct object_surface {
 	int32_t height;
 	int fourcc;
 
-	void *buffer;
+	struct rk_v4l2_buffer *bo;
 	int32_t size;
-	int32_t dma_fd;
 	VAImageID locked_image_id;
 	VAImageID derived_image_id;
 };
@@ -140,7 +140,6 @@ struct object_buffer {
 	VABufferType type;
 
 	/* Export state */
-	int32_t dma_fd;
 	unsigned int export_refcount;
 	VABufferInfo export_state;
 
@@ -150,6 +149,7 @@ struct object_buffer {
 struct object_image {
 	struct object_base base;
 	VAImage image;
+	struct rk_v4l2_buffer *bo;
 	VASurfaceID derived_surface;
 	unsigned int *palette;
 };
