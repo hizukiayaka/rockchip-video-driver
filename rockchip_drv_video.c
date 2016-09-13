@@ -93,6 +93,21 @@ rockchip_image_formats_map[ROCKCHIP_MAX_IMAGE_FORMATS + 1] = {
 	{},
 };
 
+/* Checks whether the surface is in busy state */
+static bool
+is_surface_busy(struct rockchip_driver_data *rk_data,
+			struct object_surface *obj_surface)
+{
+		assert(obj_surface != NULL);
+
+		if (obj_surface->locked_image_id != VA_INVALID_ID)
+				return true;
+		if (obj_surface->derived_image_id != VA_INVALID_ID)
+				return true;
+
+		return false;
+}
+
 static VAStatus rockchip_QueryConfigProfiles(
 		VADriverContextP ctx,
 		VAProfile *profile_list,	/* out */
@@ -492,8 +507,7 @@ static VAStatus rockchip_CreateSurfaces(
             break;
         }
         obj_surface->surface_id = surfaceID;
-	obj_surface->buffer = NULL;
-	obj_surface->dma_fd = -1;
+	obj_surface->bo = NULL;
 	/* FIXME set the surface format by hardware info */
 	obj_surface->fourcc = VA_FOURCC_NV12;
 
@@ -501,6 +515,8 @@ static VAStatus rockchip_CreateSurfaces(
 	obj_surface->orig_height = height;
 	obj_surface->width = ALIGN(width, rk_data->codec_info->min_linear_wpitch);
 	obj_surface->height = ALIGN(height, rk_data->codec_info->min_linear_hpitch);
+	obj_surface->locked_image_id = VA_INVALID_ID;
+	obj_surface->derived_image_id = VA_INVALID_ID;
 
         surfaces[i] = surfaceID;
     }
@@ -677,18 +693,23 @@ static VAStatus rockchip_DeriveImage(
 	VAImageID image_id;
 	VAStatus va_status = VA_STATUS_ERROR_OPERATION_FAILED;
 	uint32_t size, size2;
+	static bool detect_flag = false;
 
 	obj_surface = SURFACE(surface);
 	if (NULL == obj_surface)
 		return VA_STATUS_ERROR_INVALID_SURFACE;
-	if (NULL == obj_surface->buffer) {
-		/*
-		 * FIXME the V4L2 buffer have not been allocated,
-		 * to prevent to detect the capability failed,
-		 * this bogus buffer is needed, will never be free
-		 * by the driver
-		 */
-		obj_surface->buffer = malloc(4);
+
+	if (NULL == obj_surface->bo) {
+		if (!detect_flag)
+		{
+			obj_surface->bo = malloc(4);
+			obj_surface->size = 0;
+			detect_flag = true;
+		} else {
+			va_status = rk_v4l2_assign_surface_bo(ctx, obj_surface);
+			if (va_status != VA_STATUS_SUCCESS)
+				return va_status;
+		}
 	}
 
 	ASSERT_RET(obj_surface->fourcc, VA_STATUS_ERROR_INVALID_SURFACE);
@@ -736,7 +757,7 @@ static VAStatus rockchip_DeriveImage(
 	}
 
 	va_status = rockchip_allocate_refernce(ctx, VAImageBufferType, 
-			&image->buf, obj_surface->buffer, image->data_size);
+			&image->buf, obj_surface->bo, obj_surface->size);
 
 	if (VA_STATUS_SUCCESS != va_status)
 		goto error;
@@ -746,8 +767,6 @@ static VAStatus rockchip_DeriveImage(
 	if (!obj_buffer || !obj_buffer->buffer_store)
 		return VA_STATUS_ERROR_ALLOCATION_FAILED;
 
-	obj_buffer->dma_fd = obj_surface->dma_fd;
-	
 	if (image->num_palette_entries > 0 && image->entry_bytes > 0) {
 		obj_image->palette = malloc(image->num_palette_entries 
 				* sizeof(*obj_image->palette));
@@ -874,7 +893,7 @@ static VAStatus rockchip_GetImage(
 	if (!obj_image)
 	    return VA_STATUS_ERROR_INVALID_IMAGE;
 	/* don't get anything, keep previous data */
-	if (!obj_surface->buffer)
+	if (!obj_surface->bo)
 	   return VA_STATUS_SUCCESS;
 
 	if(obj_context->hw_context->get_status) {
@@ -918,7 +937,7 @@ static VAStatus rockchip_PutImage(
 )
 {
     /* TODO */
-    return VA_STATUS_SUCCESS;
+    return VA_STATUS_ERROR_UNIMPLEMENTED;
 }
 
 static VAStatus rockchip_QuerySubpictureFormats(
@@ -1123,7 +1142,61 @@ static VAStatus rockchip_CreateContext(
 			(VAEntrypointEncPicture == obj_config->entrypoint)) {
 		/* For encoder */
 		obj_context->codec_type = CODEC_ENC;
-		/* TODO */
+
+		memset(&obj_context->codec_state.encode, 0,
+				sizeof(obj_context->codec_state.encode));
+		obj_context->codec_state.encode.current_render_target = VA_INVALID_ID;
+		obj_context->codec_state.encode.max_slice_params = NUM_SLICES;
+		obj_context->codec_state.encode.slice_params 
+			= calloc(obj_context->codec_state.encode.max_slice_params,
+			   sizeof(*obj_context->codec_state.encode.slice_params));
+		obj_context->codec_state.encode.max_packed_header_params_ext 
+			= NUM_SLICES;
+		obj_context->codec_state.encode.packed_header_params_ext =
+		    calloc(obj_context->codec_state.encode.max_packed_header_params_ext,
+			   sizeof(struct buffer_store *));
+
+		obj_context->codec_state.encode.max_packed_header_data_ext 
+			= NUM_SLICES;
+		obj_context->codec_state.encode.packed_header_data_ext =
+		    calloc(obj_context->codec_state.encode.max_packed_header_data_ext,
+			   sizeof(struct buffer_store *));
+
+		obj_context->codec_state.encode.max_slice_num 
+			= NUM_SLICES;
+		obj_context->codec_state.encode.slice_rawdata_index =
+		    calloc(obj_context->codec_state.encode.max_slice_num,
+				    sizeof(int));
+		obj_context->codec_state.encode.slice_rawdata_count =
+		    calloc(obj_context->codec_state.encode.max_slice_num,
+				    sizeof(int));
+
+		obj_context->codec_state.encode.slice_header_index =
+		    calloc(obj_context->codec_state.encode.max_slice_num,
+				    sizeof(int));
+
+		obj_context->codec_state.encode.vps_sps_seq_index = 0;
+
+		obj_context->codec_state.encode.slice_index = 0;
+		/* 
+		 * use the default value. SPS/PPS/RAWDATA is passed from user
+		 * while Slice_header data is generated by driver.
+		 */
+		obj_context->codec_state.encode.packed_header_flag =
+				VA_ENC_PACKED_HEADER_SEQUENCE 
+				| VA_ENC_PACKED_HEADER_PICTURE 
+				| VA_ENC_PACKED_HEADER_RAW_DATA;
+
+#if VA_CHECK_VERSION(0,38,0)
+		/* it is not used for VP9 */
+		if (obj_config->profile == VAProfileVP9Profile0)
+			obj_context->codec_state.encode.packed_header_flag = 0;
+#endif
+
+		assert(rk_data->codec_info->enc_hw_context_init);
+		obj_context->hw_context =
+			rk_data->codec_info->enc_hw_context_init
+			(ctx, obj_context);
 	}
 	else {
 		/* For decoder */
@@ -1140,7 +1213,7 @@ static VAStatus rockchip_CreateContext(
 		/* FIXME */
 		obj_context->hw_context = 
 			rk_data->codec_info->dec_hw_context_init
-			(ctx, obj_config);
+			(ctx, obj_context);
 	}
 
 	rk_data->current_context_id = contextID;
@@ -1268,7 +1341,7 @@ static VAStatus rockchip_MapBuffer(
 {
     struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
 
-    VAStatus vaStatus = VA_STATUS_ERROR_UNKNOWN;
+    VAStatus va_status = VA_STATUS_ERROR_UNKNOWN;
     object_buffer_p obj_buffer = BUFFER(buf_id);
     struct object_context *obj_context;
 
@@ -1279,16 +1352,28 @@ static VAStatus rockchip_MapBuffer(
 
     if (NULL == obj_buffer)
     {
-        vaStatus = VA_STATUS_ERROR_INVALID_BUFFER;
-        return vaStatus;
+        va_status = VA_STATUS_ERROR_INVALID_BUFFER;
+        return va_status;
     }
+    
+    if (NULL != obj_buffer->buffer_store->bo) {
+		*pbuf = obj_buffer->buffer_store->bo->plane[0].data;
+        	va_status = VA_STATUS_SUCCESS;
 
-    if (NULL != obj_buffer->buffer_store->buffer)
-    {
-        *pbuf = obj_buffer->buffer_store->buffer;
-        vaStatus = VA_STATUS_SUCCESS;
-    }
-    return vaStatus;
+		/* FIXME support insert header directly */
+		if (obj_buffer->type == VAEncCodedBufferType) {
+		}
+
+		return va_status;
+	}
+
+	if (NULL != obj_buffer->buffer_store->buffer)
+	{
+		*pbuf = obj_buffer->buffer_store->buffer;
+		va_status = VA_STATUS_SUCCESS;
+	}
+
+	return va_status;
 }
 
 static VAStatus rockchip_UnmapBuffer(
@@ -1332,7 +1417,7 @@ static VAStatus rockchip_DestroyBuffer(
 {
     struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
 
-    object_buffer_p obj_buffer = BUFFER(buffer_id);
+    struct object_buffer *obj_buffer = BUFFER(buffer_id);
     if(NULL == obj_buffer)
         return VA_STATUS_ERROR_INVALID_BUFFER;
 
@@ -1362,8 +1447,75 @@ static VAStatus rockchip_BeginPicture(
     obj_config = CONFIG(obj_context->config_id);
 	ASSERT_RET(obj_config, VA_STATUS_ERROR_INVALID_CONFIG);
 
+	if (is_surface_busy(rk_data, obj_surface))
+			return VA_STATUS_ERROR_SURFACE_BUSY;
+
+	/* Encoder */
+	if (CODEC_ENC == obj_context->codec_type) {
+		rockchip_release_buffer_store
+				(&obj_context->codec_state.encode.pic_param);
+		for (uint32_t i = 0;
+				i < obj_context->codec_state.encode.num_slice_params; i++) 
+		{
+				rockchip_release_buffer_store
+						(&obj_context->codec_state.encode.slice_params[i]);
+		}
+
+		obj_context->codec_state.encode.num_slice_params = 0; 
+
+		/* ext */
+		rockchip_release_buffer_store
+				(&obj_context->codec_state.encode.pic_param_ext);
+
+		for (uint32_t i = 0; i < ARRAY_ELEMS(obj_context->codec_state.encode.packed_header_param); i++)
+				rockchip_release_buffer_store
+				(&obj_context->codec_state.encode.packed_header_param[i]);
+
+		for (uint32_t i = 0; i < ARRAY_ELEMS(obj_context->codec_state.encode.packed_header_data); i++)
+           		rockchip_release_buffer_store
+						(&obj_context->codec_state.encode.packed_header_data[i]);
+
+		for (uint32_t i = 0; i < obj_context->codec_state.encode.num_slice_params_ext; i++)
+           		rockchip_release_buffer_store
+						(&obj_context->codec_state.encode.slice_params_ext[i]);
+
+			obj_context->codec_state.encode.num_slice_params_ext = 0;
+			/*This is input new frame*/
+			obj_context->codec_state.encode.current_render_target = render_target; 
+			obj_context->codec_state.encode.last_packed_header_type = 0;
+			memset(obj_context->codec_state.encode.slice_rawdata_index, 0,
+				   sizeof(int) * obj_context->codec_state.encode.max_slice_num);
+			memset(obj_context->codec_state.encode.slice_rawdata_count, 0,
+				   sizeof(int) * obj_context->codec_state.encode.max_slice_num);
+			memset(obj_context->codec_state.encode.slice_header_index, 0,
+				   sizeof(int) * obj_context->codec_state.encode.max_slice_num);
+
+			for (uint32_t i = 0; i < obj_context->codec_state.encode.num_packed_header_params_ext; i++)
+				rockchip_release_buffer_store
+						(&obj_context->codec_state.encode.packed_header_params_ext[i]);
+			for (uint32_t i = 0; i < obj_context->codec_state.encode.num_packed_header_data_ext; i++)
+				rockchip_release_buffer_store
+						(&obj_context->codec_state.encode.packed_header_data_ext[i]);
+
+			obj_context->codec_state.encode.num_packed_header_params_ext = 0;
+			obj_context->codec_state.encode.num_packed_header_data_ext = 0;
+			obj_context->codec_state.encode.slice_index = 0;
+			obj_context->codec_state.encode.vps_sps_seq_index = 0;
+			rockchip_release_buffer_store(&obj_context->codec_state.encode.encmb_map);
+
+#if VA_CHECK_VERSION(0,38,0)
+			if (obj_config->profile == VAProfileVP9Profile0) {
+				for (uint32_t i = 0; i < ARRAY_ELEMS(obj_context->codec_state.encode.misc_param); i++)
+					rockchip_release_buffer_store
+							(&obj_context->codec_state.encode.misc_param[i]);
+
+				rockchip_release_buffer_store
+						(&obj_context->codec_state.encode.seq_param_ext);
+			}
+#endif
+	}
     /* Decoder */
-    if (VAEntrypointVLD == obj_config->entrypoint) {
+    if (CODEC_DEC == obj_context->codec_type) {
 		/* render_target */
 		obj_context->codec_state.decode.current_render_target = obj_surface->base.id;
 
@@ -1389,9 +1541,7 @@ static VAStatus rockchip_BeginPicture(
 		obj_context->codec_state.decode.num_slice_datas = 0;
 
 		/* You could do more hardware related cleanup or prepare here */
-		obj_surface->buffer = NULL;
-		obj_surface->dma_fd = -1;
-
+		obj_surface->bo = NULL;
     }
 
     return vaStatus;
@@ -1421,6 +1571,12 @@ static VAStatus rockchip_RenderPicture(
        vaStatus = rockchip_decoder_render_picture(ctx, context, 
 		       buffers, num_buffers);
     }
+	if ((VAEntrypointEncSlice == obj_config->entrypoint )
+				|| (VAEntrypointEncPicture == obj_config->entrypoint))
+	{
+			vaStatus = rockchip_encoder_render_picture
+					(ctx, context, buffers, num_buffers);
+	}
 
     return vaStatus;
 }
@@ -1439,8 +1595,47 @@ static VAStatus rockchip_EndPicture(
 
     obj_config = CONFIG(obj_context->config_id);
 
-    if (obj_context->codec_type == CODEC_DEC)
-    {
+	if (CODEC_ENC == obj_context->codec_type)
+	{
+		ASSERT_RET(((VAEntrypointEncSlice == obj_config->entrypoint)
+				|| (VAEntrypointEncPicture == obj_config->entrypoint)),
+				VA_STATUS_ERROR_UNSUPPORTED_ENTRYPOINT);
+
+        if (obj_context->codec_state.encode.num_packed_header_params_ext
+				!= obj_context->codec_state.encode.num_packed_header_data_ext) 
+		{
+            WARN_ONCE("the packed header/data is not paired for encoding!\n");
+            return VA_STATUS_ERROR_INVALID_PARAMETER;
+        }
+        if (!(obj_context->codec_state.encode.pic_param ||
+                obj_context->codec_state.encode.pic_param_ext)) {
+            return VA_STATUS_ERROR_INVALID_PARAMETER;
+        }
+        if (!(obj_context->codec_state.encode.seq_param ||
+                obj_context->codec_state.encode.seq_param_ext) &&
+                (VAEntrypointEncPicture != obj_config->entrypoint)) {
+            /* The seq_param is not mandatory for VP9 encoding */
+            if (obj_config->profile != VAProfileVP9Profile0)
+                return VA_STATUS_ERROR_INVALID_PARAMETER;
+        }
+        if ((obj_context->codec_state.encode.num_slice_params <=0) &&
+                (obj_context->codec_state.encode.num_slice_params_ext <=0) &&
+                ((obj_config->profile != VAProfileVP8Version0_3) &&
+                 (obj_config->profile != VAProfileVP9Profile0))) {
+            return VA_STATUS_ERROR_INVALID_PARAMETER;
+        }
+
+        if ((obj_context->codec_state.encode.packed_header_flag 
+				& VA_ENC_PACKED_HEADER_SLICE) &&
+            (obj_context->codec_state.encode.num_slice_params_ext
+			 != obj_context->codec_state.encode.slice_index)) {
+            WARN_ONCE("packed slice_header data is missing for some slice"
+                      " under packed SLICE_HEADER mode\n");
+            return VA_STATUS_ERROR_INVALID_PARAMETER;
+        }
+	}
+	else if (CODEC_DEC == obj_context->codec_type)
+	{
 		/* Basic check here */
 		if (obj_context->codec_state.decode.pic_param == NULL) {
 			return VA_STATUS_ERROR_INVALID_PARAMETER;
@@ -1448,12 +1643,12 @@ static VAStatus rockchip_EndPicture(
 		if (obj_context->codec_state.decode.num_slice_params <=0) {
 			return VA_STATUS_ERROR_INVALID_PARAMETER;
 		}
-	    if (obj_context->codec_state.decode.num_slice_datas <=0) {
-		    return VA_STATUS_ERROR_INVALID_PARAMETER;
-	    }
+		if (obj_context->codec_state.decode.num_slice_datas <=0) {
+			return VA_STATUS_ERROR_INVALID_PARAMETER;
+		}
 		if (obj_context->codec_state.decode.num_slice_params !=
-					obj_context->codec_state.decode.num_slice_datas) {
-		    return VA_STATUS_ERROR_INVALID_PARAMETER;
+				obj_context->codec_state.decode.num_slice_datas) {
+			return VA_STATUS_ERROR_INVALID_PARAMETER;
 		}
     }
 
@@ -1479,7 +1674,6 @@ static VAStatus rockchip_SyncSurface(
     obj_surface = SURFACE(render_target);
     ASSERT(obj_surface);
 
-    rk_info_msg("rockchip_SyncSurface %d\n", render_target);
     if (obj_context->hw_context->sync)
 	    obj_context->hw_context->sync(ctx, render_target);
 
@@ -1509,7 +1703,7 @@ static VAStatus rockchip_QuerySurfaceStatus(
     if (obj_context->hw_context->get_status)
     	*status = obj_context->hw_context->get_status(ctx, render_target);
     else
-	rk_info_msg("no hardware status could check %d\n", render_target);
+		rk_info_msg("no hardware status could check %d\n", render_target);
 
     return vaStatus;
 }
@@ -1694,7 +1888,8 @@ rockchip_AcquireBufferHandle(VADriverContextP ctx, VABufferID buf_id,
 	/* FIXME Synchronization */
 	VABufferInfo * const buf_info = &obj_buffer->export_state;
 
-	buf_info->handle = (intptr_t)obj_buffer->dma_fd;
+	buf_info->handle =
+		(intptr_t)obj_buffer->buffer_store->bo->plane[0].dma_fd;
 	buf_info->type = obj_buffer->type;
 	buf_info->mem_size =
 		obj_buffer->num_elements * obj_buffer->size_element;
