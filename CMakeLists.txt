@@ -54,6 +54,7 @@ endif(LIBGLESv2_FOUND)
 endif(HAVE_VA_EGL)
 
 if(${CODEC_BACKEND} MATCHES "libvpu")
+set(BUILD_IN_BACKEND ${BUILD_IN_BACKEND} v4l2_utils.c v4l2_memory.c)
 set(DECODER_BACKEND_LIBVPU 1)
 set(ENCODER_BACKEND_LIBVPU 1)
 set(BUILD_IN_BACKEND ${BUILD_IN_BACKEND} v4l2_utils.c rockchip_decoder_v4l2.c)
