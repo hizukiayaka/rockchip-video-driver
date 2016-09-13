@@ -1,30 +1,13 @@
 #ifndef _V4L2_UTILS_H_
 #define _V4L2_UTILS_H_
-#include "common.h"
 #include <linux/videodev2.h>
+#include "common.h"
+#include "v4l2_memory.h"
 
-#define RK_VIDEO_MAX_PLANES 3
 #define MAX_CODEC_BUFFER (4 * 1024 * 1024)
 
 #define NUM_DEC_INPUT_PLANES  1
 #define NUM_DEC_OUTPUT_PLANES 1
-
-enum {
-	BUFFER_FREE,
-	BUFFER_ENQUEUED,
-	BUFFER_DEQUEUED,
-};
-
-struct rk_v4l2_buffer {
-        struct {
-		int length;
-		int bytesused;
-		void *data;
-		int32_t dma_fd;
-	} plane[RK_VIDEO_MAX_PLANES];
-	int index;
-	int state;
-};
 
 struct rk_v4l2_ops {
 	int32_t(*input_alloc) (void *, uint32_t);
