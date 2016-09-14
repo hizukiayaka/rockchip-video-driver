@@ -256,18 +256,44 @@ static VAStatus rockchip_GetConfigAttributes(
 		int num_attribs
 	)
 {
-    int i;
-
     /* Other attributes don't seem to be defined */
     /* What to do if we don't know the attribute? */
-    for (i = 0; i < num_attribs; i++)
-    {
-        switch (attrib_list[i].type)
-        {
-          case VAConfigAttribRTFormat:
-              attrib_list[i].value = VA_RT_FORMAT_YUV420;
-              break;
-
+	for (uint32_t i = 0; i < num_attribs; i++)
+	{
+		switch (attrib_list[i].type)
+		{
+		case VAConfigAttribRTFormat:
+			attrib_list[i].value = VA_RT_FORMAT_YUV420;
+			break;
+		case VAConfigAttribEncPackedHeaders:
+			if (entrypoint == VAEntrypointEncPicture) { 
+				if (profile == VAProfileJPEGBaseline)
+					attrib_list[i].value
+						= VA_ENC_PACKED_HEADER_RAW_DATA;
+			}
+		case VAConfigAttribEncJPEG:
+			if(entrypoint == VAEntrypointEncPicture) {
+				VAConfigAttribValEncJPEG *configVal 
+					= (VAConfigAttribValEncJPEG*)
+					&(attrib_list[i].value);
+				/* Huffman coding is not used */
+				(configVal->bits).arithmatic_coding_mode = 1;
+				/* Only Sequential DCT is supported */
+				(configVal->bits).progressive_dct_mode = 0;
+				/* Support both interleaved and non-interleaved */
+				(configVal->bits).non_interleaved_mode = 1;
+				/* Baseline DCT is non-differential */
+				(configVal->bits).differential_mode = 0;
+				/* Only 3 components supported */
+				(configVal->bits).max_num_components = 3;
+				/* Only 1 scan per frame */
+				(configVal->bits).max_num_scans = 1;
+				/* Max 3 huffman tables, May not be used ? */
+				(configVal->bits).max_num_huffman_tables = 3;
+				/* Max 3 quantization tables */
+				(configVal->bits).max_num_quantization_tables = 3;
+			}
+			break;
           default:
               /* Do nothing */
               attrib_list[i].value = VA_ATTRIB_NOT_SUPPORTED;
@@ -405,7 +431,6 @@ rockchip_CreateConfig(
     obj_config->entrypoint = entrypoint;
     obj_config->attrib_list[0].type = VAConfigAttribRTFormat;
     obj_config->attrib_list[0].value = VA_RT_FORMAT_YUV420;
-    obj_config->attrib_count = 1;
 
     for(i = 0; i < num_attribs; i++)
     {
@@ -1339,26 +1364,38 @@ static VAStatus rockchip_MapBuffer(
 		void **pbuf         /* out */
 	)
 {
-    struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
 
-    VAStatus va_status = VA_STATUS_ERROR_UNKNOWN;
-    object_buffer_p obj_buffer = BUFFER(buf_id);
-    struct object_context *obj_context;
+	VAStatus va_status = VA_STATUS_ERROR_UNKNOWN;
+	object_buffer_p obj_buffer = BUFFER(buf_id);
+	struct object_context *obj_context;
 
-    ASSERT_RET(obj_buffer && obj_buffer->buffer_store, 
-		    VA_STATUS_ERROR_INVALID_BUFFER);
+	ASSERT_RET(obj_buffer && obj_buffer->buffer_store, 
+					VA_STATUS_ERROR_INVALID_BUFFER);
 
-    obj_context = CONTEXT(obj_buffer->context_id);
+	obj_context = CONTEXT(obj_buffer->context_id);
 
-    if (NULL == obj_buffer)
-    {
-        va_status = VA_STATUS_ERROR_INVALID_BUFFER;
-        return va_status;
-    }
+	ASSERT_RET(obj_buffer->buffer_store->bo 
+		|| obj_buffer->buffer_store->buffer,
+		VA_STATUS_ERROR_INVALID_BUFFER);
+	ASSERT_RET(!(obj_buffer->buffer_store->bo 
+		&& obj_buffer->buffer_store->buffer),
+					VA_STATUS_ERROR_INVALID_BUFFER);
+
+	if (obj_buffer->export_refcount > 0)
+		return VA_STATUS_ERROR_INVALID_BUFFER;
+
+	if (NULL == obj_buffer)
+	{
+		va_status = VA_STATUS_ERROR_INVALID_BUFFER;
+		return va_status;
+	}
     
-    if (NULL != obj_buffer->buffer_store->bo) {
+	if (NULL != obj_buffer->buffer_store->bo) {
+		ASSERT_RET(obj_buffer->buffer_store->bo->plane[0].data,
+					VA_STATUS_ERROR_OPERATION_FAILED);
 		*pbuf = obj_buffer->buffer_store->bo->plane[0].data;
-        	va_status = VA_STATUS_SUCCESS;
+		va_status = VA_STATUS_SUCCESS;
 
 		/* FIXME support insert header directly */
 		if (obj_buffer->type == VAEncCodedBufferType) {
@@ -1381,21 +1418,24 @@ static VAStatus rockchip_UnmapBuffer(
 		VABufferID buf_id	/* in */
 	)
 {
-    struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
-    struct object_buffer *obj_buffer = BUFFER(buf_id);
-    VAStatus vaStatus = VA_STATUS_ERROR_UNKNOWN;
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	struct object_buffer *obj_buffer = BUFFER(buf_id);
+	VAStatus vaStatus = VA_STATUS_ERROR_UNKNOWN;
 
-    if ((buf_id & OBJECT_HEAP_OFFSET_MASK) != BUFFER_ID_OFFSET)
-	    return VA_STATUS_ERROR_INVALID_BUFFER;
-    ASSERT_RET(obj_buffer && obj_buffer->buffer_store, 
-		    VA_STATUS_ERROR_INVALID_BUFFER);
+	if ((buf_id & OBJECT_HEAP_OFFSET_MASK) != BUFFER_ID_OFFSET)
+		return VA_STATUS_ERROR_INVALID_BUFFER;
+	ASSERT_RET(obj_buffer && obj_buffer->buffer_store,
+			VA_STATUS_ERROR_INVALID_BUFFER);
 
-    if (NULL != obj_buffer->buffer_store->buffer) {
-    	/* Do nothing */
-    	vaStatus = VA_STATUS_SUCCESS;
-    }
+	if (NULL != obj_buffer->buffer_store->bo) {
+		/* had better do nothing here */
+		vaStatus = VA_STATUS_SUCCESS;
+	} else if (NULL != obj_buffer->buffer_store->buffer) {
+		/* Do nothing */
+		vaStatus = VA_STATUS_SUCCESS;
+	}
 
-    return vaStatus;
+	return vaStatus;
 }
 
 static void 
