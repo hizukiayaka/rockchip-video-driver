@@ -12,8 +12,8 @@
 struct rk_v4l2_ops {
 	int32_t(*input_alloc) (void *, uint32_t);
 	int32_t(*output_alloc) (void *, uint32_t);
-	int32_t(*set_codec) (void *, int32_t); 
-	int32_t(*set_format) (void *, int32_t); 
+	int32_t(*set_codec) (void *, uint32_t);
+	int32_t(*set_format) (void *, uint32_t);
 	int32_t(*qbuf_input) 
 		(void *, struct rk_v4l2_buffer *);
 	int32_t(*qbuf_output) 

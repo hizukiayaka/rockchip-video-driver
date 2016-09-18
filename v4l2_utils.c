@@ -92,7 +92,7 @@ static int32_t rk_v4l2_input_allocate
 	rk_v4l2_input_release(ctx);
 
 	if (ioctl(ctx->video_fd, VIDIOC_REQBUFS, &breq) < 0) {
-		rk_info_msg("Allocate failed");
+		rk_info_msg("Allocate failed\n");
 		return 0;
 	}
 
@@ -183,7 +183,7 @@ static int32_t rk_v4l2_output_allocate
 
 	ret = ioctl(ctx->video_fd, VIDIOC_REQBUFS, &breq);
 	if (ret < 0) {
-		rk_info_msg("Allocate failed");
+		rk_info_msg("Allocate failed\n");
 		return 0;
 	}
 
@@ -195,7 +195,7 @@ static int32_t rk_v4l2_output_allocate
 	ctx->output_buffer = calloc(breq.count, sizeof(struct rk_v4l2_buffer));
 	if (NULL == ctx->output_buffer)
 	{
-		rk_error_msg("Failed to allocate space for input buffer meta data\n");
+		rk_error_msg("Failed to allocate space for output buffer meta data\n");
 		rk_v4l2_output_release(ctx);
 		return 0;
 	}
@@ -426,7 +426,7 @@ static int32_t rk_v4l2_dqbuf_output
 }
 
 static int32_t 
-rk_v4l2_dec_set_codec(void *data, int32_t codec_type) 
+rk_v4l2_dec_set_codec(void *data, uint32_t codec_type) 
 {
 	struct rk_v4l2_object *ctx = (struct rk_v4l2_object *)data;
 	struct v4l2_format format;
@@ -443,7 +443,7 @@ rk_v4l2_dec_set_codec(void *data, int32_t codec_type)
 }
 
 static int32_t 
-rk_v4l2_dec_set_fmt(void *data, int32_t reversed)
+rk_v4l2_dec_set_fmt(void *data, uint32_t reversed)
 {
 	struct rk_v4l2_object *ctx = (struct rk_v4l2_object *)data;
 	struct v4l2_format format;
@@ -461,7 +461,7 @@ rk_v4l2_dec_set_fmt(void *data, int32_t reversed)
 }
 
 static int32_t 
-rk_v4l2_enc_set_codec(void *data, int32_t codec_type) 
+rk_v4l2_enc_set_codec(void *data, uint32_t codec_type) 
 {
 	struct rk_v4l2_object *ctx = (struct rk_v4l2_object *)data;
 	struct v4l2_format format;
@@ -472,13 +472,13 @@ rk_v4l2_enc_set_codec(void *data, int32_t codec_type)
 	format.fmt.pix_mp.pixelformat = codec_type;
 	format.fmt.pix_mp.plane_fmt[0].sizeimage = MAX_CODEC_BUFFER;
 	format.fmt.pix_mp.num_planes = 1;
-	ctx->input_format = format;
+	ctx->output_format = format;
 
 	return (ioctl(ctx->video_fd, VIDIOC_S_FMT, &format));
 }
 
 static int32_t 
-rk_v4l2_enc_set_fmt(void *data, int32_t reversed)
+rk_v4l2_enc_set_fmt(void *data, uint32_t reversed)
 {
 	struct rk_v4l2_object *ctx = (struct rk_v4l2_object *)data;
 	struct v4l2_format format;
@@ -490,7 +490,7 @@ rk_v4l2_enc_set_fmt(void *data, int32_t reversed)
 	format.fmt.pix_mp.width = ctx->input_size.w;
 	format.fmt.pix_mp.height = ctx->input_size.h;
 	format.fmt.pix_mp.num_planes = 1;
-	ctx->output_format = format;
+	ctx->input_format = format;
 
 	return (ioctl(ctx->video_fd, VIDIOC_S_FMT, &format));
 }
