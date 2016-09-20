@@ -137,9 +137,12 @@ rk_h264_set_sps
 	sps->offset_for_ref_frame
 	*/
 
-	/* FIXME
-	sps->flags
-	 */
+	/* XXX It seems that we could omit this part */
+	sps->flags |= pic_param->seq_fields.bits.delta_pic_order_always_zero_flag << 2;
+	sps->flags |= pic_param->seq_fields.bits.gaps_in_frame_num_value_allowed_flag << 3;
+	sps->flags |= pic_param->seq_fields.bits.frame_mbs_only_flag << 4;
+	sps->flags |= pic_param->seq_fields.bits.mb_adaptive_frame_field_flag << 5;
+	sps->flags |= pic_param->seq_fields.bits.direct_8x8_inference_flag << 6;
 }
 
 static void
@@ -166,9 +169,30 @@ rk_h264_set_pps
 		pic_param->chroma_qp_index_offset;
 	pps->second_chroma_qp_index_offset =
 		pic_param->second_chroma_qp_index_offset;
-	/*
-	pps->flags
-	*/
+
+	pps->flags |= pic_param->pic_fields.bits.entropy_coding_mode_flag << 0;
+	pps->flags |= pic_param->pic_fields.bits.pic_order_present_flag << 1;
+	pps->flags |= pic_param->pic_fields.bits.weighted_pred_flag << 2;
+	pps->flags |= pic_param->pic_fields.bits.deblocking_filter_control_present_flag << 3;
+	pps->flags |= pic_param->pic_fields.bits.constrained_intra_pred_flag << 4;
+	pps->flags |= pic_param->pic_fields.bits.redundant_pic_cnt_present_flag << 5;
+	pps->flags |= pic_param->pic_fields.bits.transform_8x8_mode_flag << 6;
+	/* FIXME scalingMatrixPresentFlag
+	 *pps->flags |= pic_param->pic_fields.bits. << 7;
+	 */
+}
+
+static void
+rk_h264_pre_slice_param
+(struct v4l2_ctrl_h264_slice_param *dst_param,
+ struct v4l2_ctrl_h264_slice_param *src_param)
+{
+
+	dst_param->idr_pic_id = src_param->idr_pic_id;
+	dst_param->dec_ref_pic_marking_bit_size
+		= src_param->dec_ref_pic_marking_bit_size;
+	dst_param->pic_order_cnt_bit_size
+		= src_param->pic_order_cnt_bit_size;
 }
 
 static void
@@ -239,7 +263,6 @@ rk_h264_set_slice_param
 		slice_param->num_ref_idx_l0_active_minus1;
 	param->num_ref_idx_l1_active_minus1 =
 		slice_param->num_ref_idx_l1_active_minus1;
-
 }
 
 static void
@@ -262,6 +285,32 @@ rk_h264_decode_set_freq_dep_quat
 	memcpy(scaling_matrix->scaling_list_8x8,
 			iq_matrix->ScalingList8x8,
 			2 * 64 * sizeof(int8_t));
+}
+static void
+rk_h264_pre_decode_param(struct v4l2_ctrl_h264_decode_param *dst_param,
+		struct v4l2_ctrl_h264_decode_param *src_param)
+{
+	dst_param->idr_pic_flag = src_param->idr_pic_flag;
+
+	memcpy(dst_param->ref_pic_list_p0, src_param->ref_pic_list_p0,
+			32 * sizeof(uint8_t));
+	memcpy(dst_param->ref_pic_list_b0, src_param->ref_pic_list_b0,
+			32 * sizeof(uint8_t));
+	memcpy(dst_param->ref_pic_list_b1, src_param->ref_pic_list_b1,
+			32 * sizeof(uint8_t));
+
+	for (uint8_t i = 0; i < 16; i++) {
+		const struct v4l2_h264_dpb_entry *src_dpb =
+			&src_param->dpb[i];
+
+		struct v4l2_h264_dpb_entry *dst_dpb =
+			&dst_param->dpb[i];
+
+		dst_dpb->buf_index = src_dpb->buf_index;
+		dst_dpb->frame_num = src_dpb->frame_num;
+		dst_dpb->pic_num = src_dpb->pic_num;
+		dst_dpb->flags = src_dpb->flags;
+	}
 }
 
 static void
@@ -317,8 +366,6 @@ rk_dec_procsss_avc_object
 	uint32_t num_ctrls;
 	uint32_t ctrl_ids[5];
 	uint32_t payload_sizes[5];
-	struct v4l2_ctrl_h264_sps *sps_ptr;
-	struct v4l2_ctrl_h264_pps *pps_ptr;
 
 	struct v4l2_ctrl_h264_sps sps;
 	struct v4l2_ctrl_h264_pps pps;
@@ -365,14 +412,23 @@ rk_dec_procsss_avc_object
 	if (NULL != next_slice_param)
 		return NULL;
 
-	sps_ptr = (struct v4l2_ctrl_h264_sps *)payloads[0];
-	pps_ptr = (struct v4l2_ctrl_h264_pps *)payloads[1];
+	memset(&sps, 0, sizeof(sps));
+	memset(&pps, 0, sizeof(pps));
+	memset(&scaling_matrix, 0, sizeof(scaling_matrix));
+	memset(&v4l2_slice_param, 0, sizeof(v4l2_slice_param));
+	memset(&dec_param, 0, sizeof(dec_param));
 
 	rk_h264_set_sps(&sps, pic_param, ctx->profile);
 	rk_h264_set_pps(&pps, pic_param, slice_param);
-	rk_h264_decode_set_freq_dep_quat(&scaling_matrix, iq_matrix);
 
+	rk_h264_decode_set_freq_dep_quat(&scaling_matrix, iq_matrix);
+#if 1
+	rk_h264_pre_slice_param(&v4l2_slice_param, payloads[3]);
 	rk_h264_set_slice_param(&v4l2_slice_param, slice_param, pic_param);
+#endif
+
+	/* Half work seems wrong order decoding */
+	rk_h264_pre_decode_param(&dec_param,  payloads[4]);
 	rk_h264_decode_param(&dec_param, pic_param);
 
 	memset(&ext_ctrls, 0, sizeof(ext_ctrls));
@@ -381,9 +437,12 @@ rk_dec_procsss_avc_object
 			sizeof(struct v4l2_ext_control));
 	ext_ctrls.request = inbuf->index;
 
+	if (ext_ctrls.controls == NULL)
+		return NULL;
+#if 1
 	ext_ctrls.controls[0].id = V4L2_CID_MPEG_VIDEO_H264_SPS;
 	ext_ctrls.controls[0].ptr = &sps;
-	ext_ctrls.controls[0].size = sizeof(sps);
+	ext_ctrls.controls[0].size = sizeof(struct v4l2_ctrl_h264_sps);
 
 	ext_ctrls.controls[1].id = V4L2_CID_MPEG_VIDEO_H264_PPS;
 	ext_ctrls.controls[1].ptr = &pps;
@@ -398,9 +457,15 @@ rk_dec_procsss_avc_object
 	ext_ctrls.controls[3].size = sizeof(v4l2_slice_param);
 
 	ext_ctrls.controls[4].id = V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAM;
-	ext_ctrls.controls[4].ptr = &dec_param;
+	ext_ctrls.controls[4].ptr = &dec_param; 
 	ext_ctrls.controls[4].size = sizeof(dec_param);
-
+#else
+	for (uint8_t i = 0; i < num_ctrls; ++i) {
+		ext_ctrls.controls[i].id = ctrl_ids[i];
+		ext_ctrls.controls[i].ptr = payloads[i];
+		ext_ctrls.controls[i].size = payload_sizes[i];
+	}
+#endif
 	/* Set codec parameters need by VPU */
 	ioctl(ctx->v4l2_ctx->video_fd, VIDIOC_S_EXT_CTRLS, &ext_ctrls);
 
