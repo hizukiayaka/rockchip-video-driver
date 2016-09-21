@@ -588,7 +588,7 @@ rk_v4l2_assign_surface_bo(VADriverContextP ctx,
 		}
 		return VA_STATUS_SUCCESS;
 	}
-	break;
+		break;
 	case CODEC_DEC:
 	{
 	/*
@@ -609,8 +609,9 @@ rk_v4l2_assign_surface_bo(VADriverContextP ctx,
 			obj_surface->size += buffer->plane[i].length;
 		}
 #endif
+		return VA_STATUS_ERROR_UNIMPLEMENTED;
 	}
-	break;
+		break;
 	default:
 		return VA_STATUS_ERROR_UNIMPLEMENTED;
 		break;
