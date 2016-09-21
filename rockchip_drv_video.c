@@ -1472,19 +1472,19 @@ static VAStatus rockchip_BeginPicture(
 		VASurfaceID render_target
 	)
 {
-    struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
-    VAStatus vaStatus = VA_STATUS_SUCCESS;
-    struct object_context *obj_context;
-    struct object_surface *obj_surface;
-    struct object_config *obj_config;
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+	VAStatus vaStatus = VA_STATUS_SUCCESS;
+	struct object_context *obj_context;
+	struct object_surface *obj_surface;
+	struct object_config *obj_config;
 
-    obj_context = CONTEXT(context);
-    ASSERT_RET(obj_context, VA_STATUS_ERROR_INVALID_CONTEXT);
+	obj_context = CONTEXT(context);
+	ASSERT_RET(obj_context, VA_STATUS_ERROR_INVALID_CONTEXT);
 
-    obj_surface = SURFACE(render_target);
-    ASSERT_RET(obj_surface, VA_STATUS_ERROR_INVALID_SURFACE);
+	obj_surface = SURFACE(render_target);
+	ASSERT_RET(obj_surface, VA_STATUS_ERROR_INVALID_SURFACE);
 
-    obj_config = CONFIG(obj_context->config_id);
+	obj_config = CONFIG(obj_context->config_id);
 	ASSERT_RET(obj_config, VA_STATUS_ERROR_INVALID_CONFIG);
 
 	if (is_surface_busy(rk_data, obj_surface))
