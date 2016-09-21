@@ -87,8 +87,8 @@ bool h264d_prepare_data_raw(void *dec, void *buffer, size_t size,
 	payload_sizes[1] = sizeof(ctx->pps);
 	payloads[2] = (void*)&ctx->scaling_matrix;
 	payload_sizes[2] = sizeof(ctx->scaling_matrix);
-	payloads[3] = (void*)ctx->slice_params;
-	payload_sizes[3] = sizeof(ctx->slice_params);
+	payloads[3] = (void*)&ctx->slice_param;
+	payload_sizes[3] = sizeof(ctx->slice_param);
 	payloads[4] = (void*)&ctx->dec_param;
 	payload_sizes[4] = sizeof(ctx->slice_param);
 
