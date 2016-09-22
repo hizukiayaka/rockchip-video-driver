@@ -1392,8 +1392,11 @@ static VAStatus rockchip_MapBuffer(
 	}
     
 	if (NULL != obj_buffer->buffer_store->bo) {
-		ASSERT_RET(obj_buffer->buffer_store->bo->plane[0].data,
-					VA_STATUS_ERROR_OPERATION_FAILED);
+		if (NULL == obj_buffer->buffer_store->bo->plane[0].data)
+			rk_error_msg("index: %d, used %d\n",
+					obj_buffer->buffer_store->bo->index,
+					obj_buffer->buffer_store->bo->plane[0].bytesused);
+
 		*pbuf = obj_buffer->buffer_store->bo->plane[0].data;
 		va_status = VA_STATUS_SUCCESS;
 
