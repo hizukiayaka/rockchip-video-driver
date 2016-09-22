@@ -317,8 +317,8 @@ static int32_t rk_v4l2_qbuf_input
 	}
 
 	if (ioctl(ctx->video_fd, VIDIOC_QBUF, &qbuf)) {
-		rk_info_msg("Enqueuing of input buffer %d failed\n", 
-				buffer->index);
+		rk_info_msg("Enqueuing of input buffer %d failed: %s\n", 
+				buffer->index, strerror(errno));
 		return -1;
 	}
 
@@ -347,8 +347,8 @@ static int32_t rk_v4l2_qbuf_output
 	qbuf.m.planes = planes;
 
 	if (ioctl(ctx->video_fd, VIDIOC_QBUF, &qbuf) < 0) {
-		rk_info_msg("Enqueuing of output buffer %d failed; prev state: %d",
-				buffer->index, buffer->state);
+		rk_info_msg("Enqueuing of output buffer %d failed: %s\n",
+				buffer->index, strerror(errno));
 		return -1;
 	}
 
@@ -376,8 +376,8 @@ static int32_t rk_v4l2_dqbuf_input
 	dqbuf.m.planes = planes;
 
 	if (ioctl(ctx->video_fd, VIDIOC_DQBUF, &dqbuf) < 0) {
-		rk_info_msg("dequeuing of input buffer failed: %d",
-				errno);
+		rk_info_msg("dequeuing of input buffer failed: %s",
+				strerror(errno));
 		return -1;
 	}
 
@@ -409,8 +409,8 @@ static int32_t rk_v4l2_dqbuf_output
 	dqbuf.m.planes = planes;
 
 	if (ioctl(ctx->video_fd, VIDIOC_DQBUF, &dqbuf) < 0) {
-		rk_info_msg("dequeuing of output buffer failed: %d",
-				errno);
+		rk_info_msg("dequeuing of output buffer failed: %s\n",
+				strerror(errno));
 		return -1;
 	}
 
