@@ -718,23 +718,15 @@ static VAStatus rockchip_DeriveImage(
 	VAImageID image_id;
 	VAStatus va_status = VA_STATUS_ERROR_OPERATION_FAILED;
 	uint32_t size, size2;
-	static bool detect_flag = false;
 
 	obj_surface = SURFACE(surface);
 	if (NULL == obj_surface)
 		return VA_STATUS_ERROR_INVALID_SURFACE;
 
 	if (NULL == obj_surface->bo) {
-		if (!detect_flag)
-		{
-			obj_surface->bo = malloc(4);
-			obj_surface->size = 0;
-			detect_flag = true;
-		} else {
-			va_status = rk_v4l2_assign_surface_bo(ctx, obj_surface);
-			if (va_status != VA_STATUS_SUCCESS)
-				return va_status;
-		}
+		va_status = rk_v4l2_assign_surface_bo(ctx, obj_surface);
+		if (va_status != VA_STATUS_SUCCESS)
+			return va_status;
 	}
 
 	ASSERT_RET(obj_surface->fourcc, VA_STATUS_ERROR_INVALID_SURFACE);

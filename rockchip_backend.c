@@ -609,6 +609,14 @@ rk_v4l2_assign_surface_bo(VADriverContextP ctx,
 			obj_surface->size += buffer->plane[i].length;
 		}
 #endif
+		bool detect_flag = false;
+
+		if (!detect_flag) {
+			obj_surface->bo = malloc(4);
+			detect_flag = true;
+
+			return VA_STATUS_SUCCESS;
+		}
 		return VA_STATUS_ERROR_UNIMPLEMENTED;
 	}
 		break;
