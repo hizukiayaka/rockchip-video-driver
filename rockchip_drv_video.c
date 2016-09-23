@@ -533,6 +533,7 @@ static VAStatus rockchip_CreateSurfaces(
         }
         obj_surface->surface_id = surfaceID;
 	obj_surface->bo = NULL;
+	obj_surface->size = 0;
 	/* FIXME set the surface format by hardware info */
 	obj_surface->fourcc = VA_FOURCC_NV12;
 
