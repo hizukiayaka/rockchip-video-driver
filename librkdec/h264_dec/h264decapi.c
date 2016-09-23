@@ -498,7 +498,7 @@ H264DecRet H264DecDecode(struct rk_avc_decoder *dec, decContainer_t *pDecCont,  
                 pStorage->activePpsId = MAX_NUM_PIC_PARAM_SETS;
 
                 const seqParamSet_t *sps = pDecCont->storage.activeSps;
-                if ((sps->picWidthInMbs * sps->picHeightInMbs) > ((1920 >> 4) * (1088 >> 4))) {
+                if ((sps->picWidthInMbs * sps->picHeightInMbs) > ((3840 >> 4) * (2160 >> 4))) {
                     returnValue = H264DEC_SIZE_TOO_LARGE;
                     DEC_API_TRC("H264DecDecode# H264DEC_SIZE_TOO_LARGE\n");
                 } else {
@@ -968,7 +968,7 @@ u32 h264SpsSupported(const decContainer_t * pDecCont)
     /* check picture size */
     if(sps->picWidthInMbs * 16 > pDecCont->maxDecPicWidth ||
        sps->picWidthInMbs < 3 || sps->picHeightInMbs < 3 ||
-       (sps->picWidthInMbs * sps->picHeightInMbs) > ((1920 >> 4) * (1088 >> 4)))
+       (sps->picWidthInMbs * sps->picHeightInMbs) > ((3840 >> 4) * (2160 >> 4)))
     {
         DEBUG_PRINT(("Picture size not supported!\n"));
         return 0;
