@@ -1,3 +1,56 @@
+libva-rockchip (0.14-1+pre1) unstable; urgency=medium
+
+  [ ayaka ]
+  * librkdec: header: use the header from sdk-kernel
+
+  [ Randy Li ]
+  * librkdec: reduce the size slice_param sending to kernel
+  * librkdec: remove resolution restriction
+
+  [ ayaka ]
+  * debug: add warn_once()
+  * va: allow create config for jpeg baseline
+
+  [ Randy Li ]
+  * va: codec info encoder
+  * va: add size in object_surface
+
+  [ ayaka ]
+  * v4l2: disable some warnings
+
+  [ Randy Li ]
+  * backend: add render functions for encoder
+  * backend: different API for codec backend initial
+  * backend: v4l2: do initial work at CreateContext() time
+  * v4l2: isolate the v4l2 buffer settings
+  * v4l2: move to v4l2 buffer internal
+
+  [ ayaka ]
+  * v4l2: fix the settings format operations for encoder
+
+  [ Randy Li ]
+  * v4l2: verbose the failure message for buffer operations
+  * build: v4l2: build in the v4l2 buffer object operation
+  * backend: v4l2: use the new v4l2 buffer object for decoding result
+  * backend: new API to assign v4l2 buffer to surface
+  * backend: fix the decoder v4l2 buffer assignment
+  * va: introduce the rk_v4l2_buffer
+  * va: the first step to encoder and fews improvement in buffer
+  * va: fixup in attributes and buffer map
+  * va: format the code style in rockchip_BeginPicture()
+  * va: fix memory map issue with nullptr
+  * backend: v4l2: prevent the fake buffer allocated for encoder
+  * va: zero the size filed in Create a VASurface object
+  * va: support the vaCreateSurface2() interface
+  * [WIP]: backend: v4l2: v4l2 encoder
+
+  [ ayaka ]
+  * build: add v4l2 encoder backend
+
+  [ Randy Li ]
+
+ -- ayaka <ayaka@soulik.info>  Fri, 23 Sep 2016 07:43:59 +0000
+
 libva-rockchip (0.13-2) testing; urgency=medium
 
   [ 陈豪 | Jacob Chen ]
