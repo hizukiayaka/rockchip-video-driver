@@ -502,6 +502,107 @@ static VAStatus rockchip_QueryConfigAttributes(
     return vaStatus;
 }
 
+static VAStatus rockchip_CreateSurfaces2(
+		VADriverContextP ctx,
+		uint32_t format,
+		uint32_t width,
+		uint32_t height,
+		VASurfaceID *surfaces, /* out */
+		uint32_t num_surfaces,
+		VASurfaceAttrib    *attrib_list,
+		uint32_t num_attribs
+	)
+{
+	struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
+
+	VASurfaceAttribExternalBuffers *memory_attibute = NULL;
+	VAStatus va_status = VA_STATUS_SUCCESS;
+	int32_t i;
+
+	for (int32_t j = 0; j < num_attribs && attrib_list; j++) {
+		if ((attrib_list[j].type == VASurfaceAttribMemoryType) &&
+			(attrib_list[j].flags & VA_SURFACE_ATTRIB_SETTABLE))
+		{
+			ASSERT_RET(attrib_list[j].value.type ==
+					VAGenericValueTypeInteger,
+					VA_STATUS_ERROR_INVALID_PARAMETER);
+
+			/* Only support V4L2 buffer now */
+			if (attrib_list[j].value.value.i !=
+					VA_SURFACE_ATTRIB_MEM_TYPE_V4L2)
+
+				return VA_STATUS_ERROR_ALLOCATION_FAILED;
+		}
+
+		if ((attrib_list[j].type ==
+			VASurfaceAttribExternalBufferDescriptor) &&
+			(attrib_list[j].flags == VA_SURFACE_ATTRIB_SETTABLE))
+		{
+			ASSERT_RET(attrib_list[j].value.type ==
+					VAGenericValueTypePointer,
+					VA_STATUS_ERROR_INVALID_PARAMETER);
+			/* FIXME use this value or drop it */
+			memory_attibute = (VASurfaceAttribExternalBuffers *)
+				attrib_list[j].value.value.p;
+		}
+	}
+
+	/* We only support one format currently */
+	if (VA_RT_FORMAT_YUV420 != format)
+	{
+		return VA_STATUS_ERROR_UNSUPPORTED_RT_FORMAT;
+	}
+
+	for (i = 0; i < num_surfaces; i++)
+	{
+		int32_t surfaceID = object_heap_allocate(&rk_data->surface_heap);
+
+		struct object_surface *obj_surface = SURFACE(surfaceID);
+		if (NULL == obj_surface)
+		{
+		    va_status = VA_STATUS_ERROR_ALLOCATION_FAILED;
+		    break;
+		}
+		surfaces[i] = surfaceID;
+
+		obj_surface->surface_id = surfaceID;
+		/*
+		 * FIXME set the surface format by hardware info, NV12 is just
+		 * a format supported by the most of Rockchip hardware.
+		 * */
+		obj_surface->fourcc = VA_FOURCC_NV12;
+
+		obj_surface->orig_width = width;
+		obj_surface->orig_height = height;
+		obj_surface->width = ALIGN(width,
+				rk_data->codec_info->min_linear_wpitch);
+		obj_surface->height = ALIGN(height,
+				rk_data->codec_info->min_linear_hpitch);
+		obj_surface->flags = SURFACE_REFERENCED;
+		obj_surface->bo = NULL;
+		obj_surface->size = 0;
+		obj_surface->locked_image_id = VA_INVALID_ID;
+		obj_surface->derived_image_id = VA_INVALID_ID;
+	}
+
+	/* Error recovery */
+	if (VA_STATUS_SUCCESS != va_status)
+	{
+		/* surfaces[i-1] was the last successful allocation */
+		for(; i--; )
+		{
+			struct object_surface *obj_surface =
+				SURFACE(surfaces[i]);
+			surfaces[i] = VA_INVALID_SURFACE;
+			ASSERT(obj_surface);
+			object_heap_free(&rk_data->surface_heap,
+					(object_base_p) obj_surface);
+	    }
+	}
+
+	return va_status;
+}
+
 static VAStatus rockchip_CreateSurfaces(
 		VADriverContextP ctx,
 		int width,
@@ -511,57 +612,8 @@ static VAStatus rockchip_CreateSurfaces(
 		VASurfaceID *surfaces		/* out */
 	)
 {
-    struct rockchip_driver_data *rk_data = rockchip_driver_data(ctx);
-
-    VAStatus vaStatus = VA_STATUS_SUCCESS;
-    int i;
-
-    /* We only support one format */
-    if (VA_RT_FORMAT_YUV420 != format)
-    {
-        return VA_STATUS_ERROR_UNSUPPORTED_RT_FORMAT;
-    }
-
-    for (i = 0; i < num_surfaces; i++)
-    {
-        int surfaceID = object_heap_allocate(&rk_data->surface_heap);
-        object_surface_p obj_surface = SURFACE(surfaceID);
-        if (NULL == obj_surface)
-        {
-            vaStatus = VA_STATUS_ERROR_ALLOCATION_FAILED;
-            break;
-        }
-        obj_surface->surface_id = surfaceID;
-	obj_surface->bo = NULL;
-	obj_surface->size = 0;
-	/* FIXME set the surface format by hardware info */
-	obj_surface->fourcc = VA_FOURCC_NV12;
-
-	obj_surface->orig_width = width;
-	obj_surface->orig_height = height;
-	obj_surface->width = ALIGN(width, rk_data->codec_info->min_linear_wpitch);
-	obj_surface->height = ALIGN(height, rk_data->codec_info->min_linear_hpitch);
-	obj_surface->locked_image_id = VA_INVALID_ID;
-	obj_surface->derived_image_id = VA_INVALID_ID;
-
-        surfaces[i] = surfaceID;
-    }
-
-    /* Error recovery */
-    if (VA_STATUS_SUCCESS != vaStatus)
-    {
-        /* surfaces[i-1] was the last successful allocation */
-        for(; i--; )
-        {
-            object_surface_p obj_surface = SURFACE(surfaces[i]);
-            surfaces[i] = VA_INVALID_SURFACE;
-            ASSERT(obj_surface);
-            object_heap_free
-		   (&rk_data->surface_heap, (object_base_p) obj_surface);
-        }
-    }
-
-    return vaStatus;
+	return rockchip_CreateSurfaces2(ctx, format, width, height,
+			surfaces, num_surfaces, NULL, 0);
 }
 
 static VAStatus rockchip_DestroySurfaces(
@@ -2179,6 +2231,7 @@ VAStatus VA_DRIVER_INIT_FUNC(  VADriverContextP ctx )
     vtable->vaGetConfigAttributes = rockchip_GetConfigAttributes;
     vtable->vaCreateSurfaces = rockchip_CreateSurfaces;
     vtable->vaDestroySurfaces = rockchip_DestroySurfaces;
+    vtable->vaCreateSurfaces2 = rockchip_CreateSurfaces2;
     vtable->vaCreateContext = rockchip_CreateContext;
     vtable->vaDestroyContext = rockchip_DestroyContext;
     vtable->vaCreateBuffer = rockchip_CreateBuffer;
