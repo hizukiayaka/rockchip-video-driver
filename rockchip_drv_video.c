@@ -1535,8 +1535,11 @@ static VAStatus rockchip_BeginPicture(
 	obj_config = CONFIG(obj_context->config_id);
 	ASSERT_RET(obj_config, VA_STATUS_ERROR_INVALID_CONFIG);
 
+/* FIXME it should check it here, but not work for encoding*/
+#if 0
 	if (is_surface_busy(rk_data, obj_surface))
 			return VA_STATUS_ERROR_SURFACE_BUSY;
+#endif
 
 	/* Encoder */
 	if (CODEC_ENC == obj_context->codec_type) {
