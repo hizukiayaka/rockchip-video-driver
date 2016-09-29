@@ -390,11 +390,11 @@ rk_enc_jpeg_format_qual
 
 	/* FIXME select the quantization tables based on quality */
 	memcpy(v4l2_qmatrix->lum_quantiser_matrix,
-			qtable_y[8],
+			qtable_y[10],
 			64 * (sizeof(uint8_t)));
 
 	memcpy(v4l2_qmatrix->chroma_quantiser_matrix,
-			qtable_c[8],
+			qtable_c[10],
 			64 * (sizeof(uint8_t)));
 
 	ext_ctrls.count = 1;
@@ -430,6 +430,8 @@ rk_enc_push_buffer
 	uint8_t *header_data = (uint8_t *)
 		(*encode_state->packed_header_data_ext)->buffer;
 	uint32_t length_in_bits;
+	void *jpeg_hdr_ctx;
+	uint8_t *qtables[2];
 
 	/* input YUV surface */
 	obj_surface = encode_state->input_yuv_object;
@@ -473,7 +475,14 @@ rk_enc_push_buffer
 			return;
 		}
 
-		memcpy(coded_buffer_segment->buf, header_data, header_length);
+		jpege_bits_init(&jpeg_hdr_ctx);
+		jpege_bits_setup(jpeg_hdr_ctx, coded_buffer_segment->buf,
+				coded_buffer_segment->size);
+
+		write_jpeg_header(jpeg_hdr_ctx, obj_surface, qtables);
+
+		header_length = jpege_bits_get_bytepos(jpeg_hdr_ctx);
+
 		memcpy(coded_buffer_segment->buf + header_length,
 				outbuf->plane[0].data,
 				encoded_length);
@@ -488,6 +497,8 @@ rk_enc_push_buffer
 		 */
 		encode_context->v4l2_ctx->ops.qbuf_output
 		(encode_context->v4l2_ctx, outbuf);
+
+		jpege_bits_deinit(jpeg_hdr_ctx);
 	}
 	/*
 	 * FIXME may not release the input buffer here, it may be used as
