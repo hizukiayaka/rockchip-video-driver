@@ -1987,6 +1987,7 @@ VAStatus VA_DRIVER_INIT_FUNC(  VADriverContextP ctx )
 
         return VA_STATUS_ERROR_ALLOCATION_FAILED;
     }
+    rk_data->x11_backend = NULL;
     ctx->pDriverData = (void *) rk_data;
 
     result = rockchip_init(ctx);
