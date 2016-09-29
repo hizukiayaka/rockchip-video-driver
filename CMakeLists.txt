@@ -58,9 +58,7 @@ set(BUILD_IN_BACKEND ${BUILD_IN_BACKEND} v4l2_utils.c v4l2_memory.c)
 set(DECODER_BACKEND_LIBVPU 1)
 set(BUILD_IN_BACKEND ${BUILD_IN_BACKEND} rockchip_decoder_v4l2.c)
 set(ENCODER_BACKEND_LIBVPU 1)
-set(BUILD_IN_BACKEND ${BUILD_IN_BACKEND} rockchip_encoder_v4l2.c
-mpp_enc_jpeg_gen_hdr.c
-)
+set(BUILD_IN_BACKEND ${BUILD_IN_BACKEND} rockchip_encoder_v4l2.c)
 
 ADD_SUBDIRECTORY (librkdec)
 set(BACKEND_SUPPORT_LIBRARY ${BACKEND_SUPPORT_LIBRARY} rkdec)
