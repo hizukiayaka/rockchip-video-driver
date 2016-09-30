@@ -37,6 +37,10 @@
 #include "rockchip_encoder_v4l2.h"
 #include "v4l2_utils.h"
 
+/* FIXME use the standard private CID instead */
+#define V4L2_CID_CUSTOM_BASE			(V4L2_CID_USER_BASE | 0x1000)
+#define V4L2_CID_ROCKCHIP_HEADER_SIZE           (V4L2_CID_CUSTOM_BASE + 4)
+
 /* 
  * Zigzag scan order of the the Luma and Chroma components
  * Note: Jpeg Spec ISO/IEC 10918-1, Figure A.6 shows the zigzag order differently.
@@ -121,11 +125,11 @@ rk_enc_jpeg_format_qual
 	struct object_surface *obj_surface;
 	VAEncPictureParameterBufferJPEG *pic_param;
 	VAQMatrixBufferJPEG *qmatrix;
+	VAEncPackedHeaderParameterBuffer *param = NULL;
 	struct rk_v4l2_buffer *inbuf;
 	struct v4l2_ext_controls ext_ctrls;
 	struct v4l2_ctrl_jpeg_qmatrix *v4l2_qmatrix;
-	uint32_t quality = 0;
-	uint32_t temp;
+	uint32_t quality, temp, length_bytes;
 
 	assert(encode_state->pic_param_ext 
 			&& encode_state->pic_param_ext->buffer);
@@ -178,8 +182,12 @@ rk_enc_jpeg_format_qual
 		v4l2_qmatrix->chroma_quantiser_matrix[i] = (uint8_t)temp;
 	}
 
-	ext_ctrls.count = 1;
-	ext_ctrls.controls = malloc(sizeof(struct v4l2_ext_control));
+	param = (VAEncPackedHeaderParameterBuffer *)
+		(*encode_state->packed_header_params_ext)->buffer;
+	length_bytes = param->bit_length / 8;
+
+	ext_ctrls.count = 2;
+	ext_ctrls.controls = calloc(2, sizeof(struct v4l2_ext_control));
 	ext_ctrls.request = inbuf->index;
 	if (NULL == ext_ctrls.controls)
 		return;
@@ -187,6 +195,9 @@ rk_enc_jpeg_format_qual
 	ext_ctrls.controls[0].id = V4L2_CID_JPEG_QMATRIX;
 	ext_ctrls.controls[0].ptr = v4l2_qmatrix;
 	ext_ctrls.controls[0].size = sizeof(*v4l2_qmatrix);
+	ext_ctrls.controls[1].id = V4L2_CID_ROCKCHIP_HEADER_SIZE;
+	ext_ctrls.controls[1].ptr = &length_bytes;
+	ext_ctrls.controls[1].size = sizeof(uint32_t *);
 
 	/* Set codec parameters need by VPU */
 	ioctl(encode_context->v4l2_ctx->video_fd, 
@@ -233,49 +244,35 @@ rk_enc_push_buffer
 			(encode_context->v4l2_ctx, &outbuf))
 	{
 		uint32_t header_length = 0;
-		uint32_t encoded_length = 0;
 
 		ASSERT(VAEncCodedBufferType == obj_buffer->type);
 
 		/* The header VA-API sent is enough to decode */
 		param = (VAEncPackedHeaderParameterBuffer *)
 			(*encode_state->packed_header_params_ext)->buffer;
-		length_in_bits = param->bit_length;
 
 		coded_buffer_segment = (VACodedBufferSegment *)
 			obj_buffer->buffer_store->buffer;
 
-		header_length = length_in_bits / 8;
-		encoded_length = rk_v4l2_buffer_total_bytesused(outbuf);
-		coded_buffer_segment->size = encoded_length + header_length;
+		coded_buffer_segment->buf = outbuf->plane[0].data;
+		ASSERT(coded_buffer_segment->buf);
 
-		coded_buffer_segment->buf = malloc(coded_buffer_segment->size);
+		header_length = param->bit_length / 8;
+		coded_buffer_segment->size = header_length
+			+ rk_v4l2_buffer_total_bytesused(outbuf);
 
-		if (NULL == coded_buffer_segment->buf) {
-			rk_info_msg("coded buffer failed %d\n",
-					coded_buffer_segment->size);
-			return;
-		}
-
-		memcpy(coded_buffer_segment->buf,
-				header_data,
-				header_length);
-
-		memcpy(coded_buffer_segment->buf + header_length,
-				outbuf->plane[0].data,
-				encoded_length);
+		/* Fill the header */
+		memcpy(coded_buffer_segment->buf, header_data, header_length);
 
 		coded_buffer_segment->next = NULL;
 		coded_buffer_segment->bit_offset = 0;
 		coded_buffer_segment->status = 0;
-
 		/*
 		 * FIXME it may be used as reconstruction buffer for the
 		 * other codecs
 		 */
 		encode_context->v4l2_ctx->ops.qbuf_output
 		(encode_context->v4l2_ctx, outbuf);
-
 	}
 	/*
 	 * FIXME may not release the input buffer here, it may be used as
