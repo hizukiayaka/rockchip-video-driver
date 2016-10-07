@@ -1,3 +1,9 @@
+libva-rockchip (0.14-2) testing; urgency=medium
+
+  * backend: v4l2: fix the order of quantization tables
+
+ -- Randy Li <randy.li@rock-chips.com>  Fri, 07 Oct 2016 06:03:32 +0000
+
 libva-rockchip (0.14-1) testing; urgency=medium
 
   [ ayaka ]
