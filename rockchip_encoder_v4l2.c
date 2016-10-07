@@ -169,14 +169,14 @@ rk_enc_jpeg_format_qual
 		return;
 
 	for (uint8_t i = 0; i < 64; i++) {
-		temp = (jpeg_luma_quant[i] * quality) / 100;
+		temp = (jpeg_luma_quant[zigzag_direct[i]] * quality) / 100;
 		temp = (temp > 255) ? 255 : temp;
 		temp = (temp < 1) ? 1 : temp;
 		v4l2_qmatrix->lum_quantiser_matrix[i] = (uint8_t)temp;
 	}
 
 	for (uint8_t i = 0; i < 64; i++) {
-		temp = (jpeg_chroma_quant[i] * quality) / 100;
+		temp = (jpeg_chroma_quant[zigzag_direct[i]] * quality) / 100;
 		temp = (temp > 255) ? 255 : temp;
 		temp = (temp < 1) ? 1 : temp;
 		v4l2_qmatrix->chroma_quantiser_matrix[i] = (uint8_t)temp;
