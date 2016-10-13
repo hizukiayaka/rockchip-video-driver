@@ -58,6 +58,10 @@ enum {
     ROCKCHIP_SURFACETYPE_INDEXED,
 };
 
+static const VADisplayAttribute rockchip_display_attributes[] = {
+	/* None of the display attribute is supported. */
+};
+
 static VAStatus 
 rockchip_MapBuffer(VADriverContextP ctx, VABufferID buf_id, void **pbuf); 
 
@@ -1901,8 +1905,15 @@ static VAStatus rockchip_QueryDisplayAttributes (
 		int *num_attributes		/* out */
 	)
 {
-    /* TODO */
-    return VA_STATUS_ERROR_UNKNOWN;
+	const int num_attribs = ARRAY_ELEMS(rockchip_display_attributes);
+
+	if (attr_list && num_attribs > 0)
+		memcpy(attr_list, rockchip_display_attributes,
+				sizeof(rockchip_display_attributes));
+	if (num_attributes)
+		*num_attributes = num_attribs;
+
+	return VA_STATUS_SUCCESS;
 }
 
 /* 
