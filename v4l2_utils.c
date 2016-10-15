@@ -516,6 +516,7 @@ static const char *rk_vpu_dec_list[] = {
 	"rockchip-vpu-vdec",	
 	"rockchip-vpu-dec",
 	"rk3288-vpu-dec",
+	"rockchip,rk3399-vdec-dec",
 };
 
 struct rk_v4l2_object *rk_v4l2_dec_create(char *vpu_path)
