@@ -62,13 +62,28 @@ static void rk3288_max_resolution(struct rockchip_driver_data *rk_data,
 #endif
 }
 
+static void rk3399_max_resolution(struct rockchip_driver_data *rk_data,
+		struct object_config *obj_config, int *w, int *h)
+{
+#if VA_CHECK_VERSION(0,37,0)
+	if (obj_config->profile == VAProfileVP9Profile0) {
+		rk_data->codec_info->min_linear_wpitch = 64;
+		rk_data->codec_info->min_linear_hpitch = 64;
+	} else {
+#endif
+		*w = rk_data->codec_info->max_width;
+		*h = rk_data->codec_info->max_height;
+#if VA_CHECK_VERSION(0,37,0)
+	}
+#endif
+}
+
 static struct hw_codec_info rk3288_hw_codec_info = {
 	.dec_hw_context_init = rk3288_dec_hw_context_init,
 	.enc_hw_context_init = rk3288_enc_hw_context_init,
 	/* TODO */
 	//.render_init = rk3288_render_init,
 	.max_resolution = rk3288_max_resolution,
-	.max_resolution = NULL,
 
 	/*
 	 * If you use the CMA for DMA, remember to allocate at least
@@ -94,12 +109,45 @@ static struct hw_codec_info rk3288_hw_codec_info = {
 	.has_hevc10_decoding = 0,
 };
 
+static struct hw_codec_info rk3399_hw_codec_info = {
+	.dec_hw_context_init = rk3288_dec_hw_context_init,
+	.enc_hw_context_init = rk3288_enc_hw_context_init,
+	/* TODO */
+	//.render_init = rk3288_render_init,
+	.max_resolution = rk3399_max_resolution,
+
+	/*
+	 * If you use the CMA for DMA, remember to allocate at least
+	 * 32Mbytes reserverd memory for 1920x1080 pixels in NV12
+	 * */
+	.max_width = 4096,
+	.max_height = 2304,
+	.min_linear_wpitch = 16,
+	.min_linear_hpitch = 16,
+
+	.h264_dec_chroma_formats = EXTRA_H264_DEC_CHROMA_FORMATS,
+
+	.has_mpeg2_decoding = 0,
+	.has_mpeg2_encoding = 0,
+	.has_h264_decoding = 1,
+	.has_h264_encoding = 0,
+	.has_jpeg_decoding = 0,
+	.has_jpeg_encoding = 1,
+	.has_accelerated_getimage = 0,
+	.has_accelerated_putimage = 0,
+	.has_vp8_decoding = 0,
+	.has_hevc_decoding = 0,
+	.has_hevc10_decoding = 0,
+};
+
 struct hw_codec_info *rk_get_codec_info(int devid)
 {
 	switch (devid) {
 		/* TODO */
 	case 3288:
 		return &rk3288_hw_codec_info;
+	case 3399:
+		return &rk3399_hw_codec_info;
 	default:
 		return NULL;
 	}
