@@ -75,7 +75,10 @@ struct rockchip_driver_data {
 	VADisplayAttribute *display_attributes;
 	VAContextID current_context_id;
 
-	void *x11_backend;
+	union {
+		void *x11_backend;
+		void *drm_output;
+	};
 };
 
 static inline struct rockchip_driver_data
