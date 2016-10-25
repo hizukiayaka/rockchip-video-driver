@@ -37,7 +37,9 @@
 #ifdef HAVE_VA_EGL
 #include "rockchip_x11_gles.h"
 #endif
-
+#ifdef HAVE_VA_DRM
+#include "rockchip_drm_vop.h"
+#endif
 
 #define CONFIG_ID_OFFSET		0x01000000
 #define CONTEXT_ID_OFFSET		0x02000000
@@ -1824,12 +1826,21 @@ static VAStatus rockchip_PutSurface(
 	if (IS_VA_X11(ctx)) {
 		return rockchip_x11_gles_PutSurface
 			(ctx, surface, draw, srcx, srcy, srcw, srch,
-			 destx, desty, destw, desth, cliprects, number_cliprects, flags);
+			 destx, desty, destw, desth, cliprects,
+			 number_cliprects, flags);
 	}
 #endif
 #ifdef HAVE_VA_DRM
+	/* FIXME */
+#if 0
 	if (IS_VA_DRM(ctx)) {
-	/* TODO */
+#else
+	if (IS_VA_X11(ctx)) {
+#endif
+		return rockchip_drm_vop_put_surface
+			(ctx, surface, draw, srcx, srcy, srcw, srch,
+			 destx, desty, destw, desth, cliprects,
+			 number_cliprects, flags);
 	}
 #endif
 
@@ -2156,6 +2167,14 @@ struct {
 		rockchip_x11_gles_init,
 		rockchip_x11_gles_destory,
 		VA_DISPLAY_X11,
+	},
+#endif
+#ifdef HAVE_VA_DRM
+	{
+		rockchip_drm_output_init,
+		rockchip_drm_output_destroy,
+		/* FIXME VA_DISPLAY_DRM, */
+		0,
 	},
 #endif
 };
