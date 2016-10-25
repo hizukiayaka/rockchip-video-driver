@@ -25,6 +25,7 @@
 
 #include <drm_fourcc.h>
 #include "common.h"
+#include "rockchip_driver.h"
 #include "rockchip_debug.h"
 
 VAStatus rockchip_drm_vop_put_surface (
@@ -43,3 +44,6 @@ VAStatus rockchip_drm_vop_put_surface (
     unsigned int number_cliprects, /* number of clip rects in the clip list */
     unsigned int flags /* PutSurface flags */
 );
+
+bool rockchip_drm_output_init(VADriverContextP ctx);
+void rockchip_drm_output_destroy(VADriverContextP ctx);
