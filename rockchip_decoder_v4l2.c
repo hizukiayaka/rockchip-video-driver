@@ -77,7 +77,52 @@ rk_dec_release(struct rk_dec_v4l2_context *ctx)
 	}while(index >= 0);
 }
 
-static struct rk_v4l2_buffer *
+static bool
+rk_dec_wait_result(VADriverContextP ctx, VASurfaceID render_target)
+{
+	struct rockchip_driver_data *rk_data = 
+		rockchip_driver_data(ctx);
+	struct rk_dec_v4l2_context *rk_v4l2_data =
+		(struct rk_dec_v4l2_context *)rk_data->hw_context;
+	struct rk_v4l2_object *video_ctx = rk_v4l2_data->v4l2_ctx;
+	struct rk_v4l2_buffer *outbuf;
+
+	struct object_context *obj_context;
+	struct object_surface *obj_surface;
+
+	assert(rk_v4l2_data);
+
+	obj_context = CONTEXT(rk_data->current_context_id);
+	ASSERT(obj_context);
+
+	obj_surface = SURFACE(obj_surface);
+	ASSERT(obj_surface);
+
+	/* Get decoded raw picture */
+	if (0 == ctx->v4l2_ctx->ops.dqbuf_output(ctx->v4l2_ctx, &outbuf))
+	{
+		h264d_picture_ready(ctx->wrapper_pdrvctx, outbuf->index);
+		/* Release the last time output buffer, the libvpu
+		 * would determind which buffers are not the last
+		 * buffer in capture then this function would release
+		 * it and enqueue the CAPTURE */
+		rk_dec_release(ctx);
+	}
+
+	/* Get validate frame */
+	if (outbuf)
+	{
+		obj_surface->bo = outbuf;
+		obj_surface->size =
+			rk_v4l2_buffer_total_bytesused(outbuf);
+
+		return true;
+	}
+
+	return false;
+}
+
+static bool *
 rk_dec_procsss_avc_object
 (struct rk_dec_v4l2_context *ctx,
  VAPictureParameterBufferH264 *pic_param, 
@@ -92,7 +137,7 @@ rk_dec_procsss_avc_object
 	struct v4l2_ctrl_h264_sps *sps;
 	struct v4l2_ctrl_h264_pps *pps;
 	struct v4l2_ext_controls ext_ctrls;
-	struct rk_v4l2_buffer *inbuf, *outbuf;
+	struct rk_v4l2_buffer *inbuf;
 	uint8_t *ptr, *ptr2, *nal_ptr;
 	uint8_t start_code_prefix[3] = {0x00, 0x00, 0x01};
 
@@ -101,7 +146,7 @@ rk_dec_procsss_avc_object
 	inbuf = rk_v4l2_get_input_buffer(ctx->v4l2_ctx);
 	/* Not get validate buffer */
 	if (NULL == inbuf)
-		return NULL;
+		return false;
 	/* FIXME overflow risk here */
 	ptr = inbuf->plane[0].data + inbuf->plane[0].bytesused;
 	nal_ptr = slice_data + slice_param->slice_data_offset;
@@ -135,7 +180,7 @@ rk_dec_procsss_avc_object
 	}
 #else
 	if (NULL != next_slice_param)
-		NULL;
+		rk_error_msg("slice param number not match\n");
 #endif
 
 	sps = (struct v4l2_ctrl_h264_sps *)payloads[0];
@@ -179,6 +224,7 @@ rk_dec_procsss_avc_object
 	/* Push codec data to driver */
 	ctx->v4l2_ctx->ops.qbuf_input(ctx->v4l2_ctx, inbuf);
 
+#if 0
 	/* Get decoded raw picture */
 	if (0 == ctx->v4l2_ctx->ops.dqbuf_output(ctx->v4l2_ctx, &outbuf))
 	{
@@ -189,23 +235,22 @@ rk_dec_procsss_avc_object
 		 * it and enqueue the CAPTURE */
 		rk_dec_release(ctx);
 	}
+#endif
 	/* release the input buffer */
 	ctx->v4l2_ctx->ops.dqbuf_input(ctx->v4l2_ctx, &inbuf);
 
-	return outbuf;
+	return true;
 }
 
 #define MAX_CAPTURE_BUFFERS   22
 
 static VAStatus
 rk_dec_v4l2_avc_decode_picture
-(VADriverContextP ctx,  union codec_state *codec_state, 
- struct hw_context *hw_context)
+(VADriverContextP ctx,  union codec_state *codec_state)
 {
 	struct rockchip_driver_data *rk_data = 
 		rockchip_driver_data(ctx);
-	struct rk_dec_v4l2_context *rk_v4l2_data =
-		(struct rk_dec_v4l2_context *)hw_context;
+	struct rk_dec_v4l2_context *rk_v4l2_data = NULL;
 	struct rk_v4l2_object *video_ctx = rk_v4l2_data->v4l2_ctx;
 	struct rk_v4l2_buffer *outbuf;
 	struct decode_state *decode_state = &codec_state->decode;
@@ -222,6 +267,7 @@ rk_dec_v4l2_avc_decode_picture
 
 	obj_context = CONTEXT(rk_data->current_context_id);
 	ASSERT(obj_context);
+	rk_v4l2_data = (struct rk_dec_v4l2_context *)obj_context->hw_context;
 
 	obj_surface =
 	SURFACE(obj_context->codec_state.decode.current_render_target);
@@ -285,6 +331,7 @@ rk_dec_v4l2_avc_decode_picture
 				next_slice_param = slice_param + 1;
 			else
 				next_slice_param = next_slice_group_param;
+#if 0
 			/* Hardware job begin here */
 			outbuf = rk_dec_procsss_avc_object(rk_v4l2_data, pic_param,
 					slice_param, next_slice_param, 
@@ -296,11 +343,15 @@ rk_dec_v4l2_avc_decode_picture
 				obj_surface->size =
 					rk_v4l2_buffer_total_bytesused(outbuf);
 			}
-
+#else
+			/* Hardware job begin here */
+			rk_dec_procsss_avc_object(rk_v4l2_data,
+					pic_param, slice_param,
+					next_slice_param, slice_data);
+#endif
 			/* Hardware job end here */
 			slice_param++;
 		}
-
 	}
 
 	return VA_STATUS_SUCCESS;
@@ -309,14 +360,13 @@ rk_dec_v4l2_avc_decode_picture
 static VAStatus
 rk_dec_v4l2_decode_picture
 (VADriverContextP ctx, VAProfile profile, 
-union codec_state *codec_state, struct hw_context *hw_context)
+union codec_state *codec_state)
 {
 	switch(profile) {
 	case VAProfileH264Baseline:
 	case VAProfileH264Main:
 	case VAProfileH264High:
-		return rk_dec_v4l2_avc_decode_picture
-			(ctx, codec_state, hw_context);
+		return rk_dec_v4l2_avc_decode_picture(ctx, codec_state);
 		break;
 	default:
 		/* Unsupport profile */
@@ -365,7 +415,8 @@ decoder_rk_v4l2_init
 	video_ctx->ops.set_codec(video_ctx, v4l2_codec_type);
 	video_ctx->ops.set_format(video_ctx, 0);
 
-	ret = video_ctx->ops.input_alloc(video_ctx, 1);
+	/* we should prepare more than one buffer to be processed */
+	ret = video_ctx->ops.input_alloc(video_ctx, 4);
 	ASSERT_RET(0 != ret, VA_STATUS_ERROR_ALLOCATION_FAILED);
 
 	/* Keep Reference buffer */
@@ -421,7 +472,7 @@ decoder_v4l2_create_context()
 	rk_v4l2_ctx->base.run = rk_dec_v4l2_decode_picture;
 	rk_v4l2_ctx->base.destroy = decoder_v4l2_destroy_context;
 	rk_v4l2_ctx->base.get_status = NULL;
-	rk_v4l2_ctx->base.sync = NULL;
+	rk_v4l2_ctx->base.sync = rk_dec_wait_result;
 
 	return (struct hw_context *) rk_v4l2_ctx;
 }
