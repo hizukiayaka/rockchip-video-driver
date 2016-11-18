@@ -31,6 +31,43 @@
 #include "rockchip_decoder_v4l2.h"
 #include "rockchip_encoder_v4l2.h"
 
+VAStatus hw_context_run
+(struct hw_context * hw_context, VADriverContextP ctx,
+VAProfile profile, union codec_state * codec_state)
+{
+	if (!hw_context || !hw_context->run)
+		return VA_STATUS_SUCCESS;
+
+	return hw_context->run (ctx, profile, codec_state, hw_context);
+}
+
+void hw_context_destroy (struct hw_context * hw_context, void *param)
+{
+	if (!hw_context || !hw_context->destroy)
+		return;
+
+	return hw_context->destroy (hw_context, param);
+}
+
+VASurfaceStatus hw_context_get_status
+(struct hw_context * hw_context, VADriverContextP ctx, VASurfaceID surface_id)
+{
+	if (!hw_context || !hw_context->get_status)
+		return VASurfaceReady;
+
+	hw_context->get_status (ctx, surface_id);
+}
+
+bool hw_context_sync (struct hw_context * hw_context, VADriverContextP ctx,
+	VASurfaceID render_target)
+{
+	if (!hw_context || !hw_context->sync)
+		return TRUE;
+
+	hw_context->sync (ctx, render_target);
+}
+
+
 struct hw_context *rk3288_dec_hw_context_init
     (VADriverContextP ctx, struct object_context *obj_context) 
 {
@@ -609,13 +646,17 @@ rk_v4l2_assign_surface_bo(VADriverContextP ctx,
 			obj_surface->size += buffer->plane[i].length;
 		}
 #endif
-		bool detect_flag = false;
+		static bool detect_flag = false;
 
 		if (!detect_flag) {
 			obj_surface->bo = malloc(4);
 			detect_flag = true;
 
 			return VA_STATUS_SUCCESS;
+		} else {
+			if (hw_context_sync (obj_context->hw_context,
+						obj_surface->surface_id))
+				return VA_STATUS_SUCCESS;
 		}
 		return VA_STATUS_ERROR_UNIMPLEMENTED;
 	}

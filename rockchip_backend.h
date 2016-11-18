@@ -122,6 +122,19 @@ struct hw_codec_info {
 	struct rockchip_filter filters[VAProcFilterCount];
 };
 
+VAStatus hw_context_run
+(struct hw_context * hw_context, VADriverContextP ctx, VAProfile profile,
+union codec_state * codec_state);
+
+void hw_context_destroy (struct hw_context * hw_context, void *param);
+
+VASurfaceStatus hw_context_get_status
+(struct hw_context * hw_context, VADriverContextP ctx, VASurfaceID surface_id);
+
+bool hw_context_sync
+(struct hw_context * hw_context, VADriverContextP ctx,
+VASurfaceID render_target);
+
 struct hw_context *rk3288_dec_hw_context_init
 (VADriverContextP ctx, struct object_context *obj_context);
 
