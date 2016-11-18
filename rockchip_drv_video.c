@@ -1749,7 +1749,7 @@ static VAStatus rockchip_EndPicture(
 		}
     }
 
-	/* Hardware relative code */
+    /* Hardware relative code */
     ASSERT_RET(obj_context->hw_context->run, VA_STATUS_ERROR_OPERATION_FAILED);
     return obj_context->hw_context->run(ctx, obj_config->profile, 
 		    &obj_context->codec_state, obj_context->hw_context);
